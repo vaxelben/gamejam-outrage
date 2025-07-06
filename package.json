@@ -1,0 +1,30 @@
+{
+  "name": "masques-et-outrage-poc",
+  "version": "1.0.0",
+  "description": "Social stealth game with emotional masks - migrated from Babylon.js to Three.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:analyze": "vite build && npx vite-bundle-analyzer dist",
+    "preview": "vite preview",
+    "serve": "vite preview --port 8080",
+    "clean": "rm -rf dist node_modules/.vite"
+  },
+  "keywords": [
+    "game",
+    "threejs",
+    "stealth",
+    "emotional-masks",
+    "3d"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.155.0",
+    "tweakpane": "^4.0.5"
+  },
+  "devDependencies": {
+    "vite": "^4.4.9"
+  }
+}
