@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Masques et Outrage - POC</title>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        /* UI Styles for replacing Babylon.GUI */
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .ui-element {
+            pointer-events: auto;
+        }
+        
+        #outrage-bar {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 15px;
+        }
+        
+        #outrage-fill {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            width: 26px;
+            background: red;
+            border-radius: 13px;
+            transition: height 0.3s ease;
+        }
+        
+        #energy-bar {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 15px;
+        }
+        
+        #energy-fill {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            width: 26px;
+            background: cyan;
+            border-radius: 13px;
+            transition: height 0.3s ease;
+        }
+        
+        #mask-selector {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 680px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 0 10px;
+        }
+        
+        .mask-button {
+            width: 75px;
+            height: 40px;
+            background: rgba(100, 100, 100, 0.5);
+            border: 2px solid white;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 9px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+            text-align: center;
+        }
+        
+        .mask-button.active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .mask-button.neutral {
+            background: rgba(50, 50, 50, 0.5);
+        }
+        
+        #bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.7);
+            border-top: 2px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .bar-label {
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        #outrage-label {
+            right: -80px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            transform-origin: center;
+        }
+        
+        #energy-label {
+            left: -80px;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            transform-origin: center;
+        }
+    </style>
+  <script type="module" crossorigin src="/gamejam-outrage/assets/index-6fa1a761.js"></script>
+  <link rel="modulepreload" crossorigin href="/gamejam-outrage/assets/three-f1fceabe.js">
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="instructions">
+        <div>ZQSD: Move | Mouse: Camera | 1-7: Ideological Masks | ESC: Neutral</div>
+        <div>Blend in with crowds using the right ideology!</div>
+    </div>
+    
+    <!-- UI Container -->
+    
+    <!-- Main module -->
+    
+</body>
+</html> 
