@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  // Configuration de base
-  base: './',
+  // Configuration de base - GitHub Pages nécessite le nom du repo
+  base: process.env.NODE_ENV === 'production' ? '/gamejam-outrage/' : './',
   
   // Configuration du serveur de développement
   server: {
@@ -15,7 +15,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    minify: 'terser',
+    minify: 'esbuild', // Utiliser esbuild au lieu de terser
     rollupOptions: {
       output: {
         manualChunks: {

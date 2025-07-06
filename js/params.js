@@ -48,7 +48,7 @@ export const params = {
     NPC_SIZE: 0.5,                   // Size of individual NPCs
     NPC_GROUP_SIZE: 20,              // Number of NPCs per group
     NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
-    NPC_SPEED_VARIATION: 2,          // Speed variation between NPCs
+    NPC_SPEED_VARIATION: 2,
     NPC_INTERACTION_RADIUS: 3,       // Distance for NPC-player interaction
     NPC_GROUP_RADIUS: 50,             // Distance for NPCs to consider themselves in same group
     NPC_WANDER_RADIUS: 8,            // Maximum distance for wandering behavior
@@ -74,18 +74,28 @@ export const params = {
     
     NPC_WANDER_FORCE: 0.1,           // Strength of wandering behavior (reduced for flocking)
     NPC_INTER_GROUP_REPULSION: 1.5,  // Repulsion force between different groups
-    NPC_INTER_GROUP_DISTANCE: 4.0,   // Distance at which inter-group repulsion starts
+    NPC_INTER_GROUP_DISTANCE: 4.0,
+
+    // Additional crowd parameters
+    CROWD_SPREAD_FACTOR: 1.5,        // How spread out crowd members are
+    CROWD_FADE_TIME: 2.0,            // Time to fade crowd members in/out
+    CROWD_MOVEMENT_SPEED: 0.5,       // Speed of crowd movement
+    CROWD_PATIENCE: 60,              // Seconds before crowd gets impatient
     
-    // Visual settings (color values for Three.js) - matching mask categories
-    CROWD_COLORS: {
-        1: { r: 0.2, g: 0.4, b: 0.8 },  // Conservatives - Triangle crowds - Blue
-        2: { r: 0.8, g: 0.2, b: 0.2 },  // Social Justice - Square crowds - Red
-        3: { r: 1.0, g: 0.6, b: 0.2 },  // Libertarians - Circle crowds - Orange
-        4: { r: 0.2, g: 0.8, b: 0.2 },  // Nationalists - Triangle crowds - Green
-        5: { r: 0.8, g: 0.2, b: 0.8 },  // Culture - Square crowds - Purple
-        6: { r: 0.2, g: 0.2, b: 0.8 },  // Religious - Square crowds - Brown
-        7: { r: 0.8, g: 0.4, b: 0.8 }   // Antisystem - Triangle crowds - Pink
-    }
+    // Game balancing
+    GAME_SPEED_MULTIPLIER: 1.0,      // Overall game speed multiplier
+    DIFFICULTY_SCALING: 1.2,         // How much difficulty increases over time
+    PLAYER_INFLUENCE_RADIUS: 4.0,    // How far player influence extends
+    
+    // Visual settings
+    PLANET_TEXTURE_SCALE: 1.0,       // Scale of planet texture
+    LIGHTING_INTENSITY: 1.0,         // Ambient lighting intensity
+    SHADOW_QUALITY: 1.0,             // Shadow map resolution multiplier
+    
+    // Performance settings
+    MAX_VISIBLE_NPCS: 200,           // Maximum NPCs to render
+    LOD_DISTANCE: 50,                // Distance for level of detail switching
+    PHYSICS_STEP_SIZE: 0.016,        // Physics simulation step size
 };
 
 // Tweakpane integration for live parameter tuning
@@ -93,83 +103,187 @@ import { Pane } from 'tweakpane';
 
 let pane = null;
 
+// Variables pour stocker les informations de déplacement instantané
+export const playerMovementData = {
+    inputVector: { x: 0, y: 0 },
+    movementVector: { x: 0, y: 0, z: 0 },
+    forwardDirection: { x: 0, y: 0, z: 0 },
+    rightDirection: { x: 0, y: 0, z: 0 },
+    activeKeys: '',
+    position: { x: 0, y: 0, z: 0 },
+    speed: 0
+};
+
 export function initTweakpane() {
     if (!Pane) {
         console.log('Tweakpane not available');
         return;
     }
     
-    pane = new Pane({ title: 'Game Parameters', expanded: false });
+    pane = new Pane({ 
+        title: 'Déplacement Instantané ZQSD', 
+        expanded: true,
+        width: 350
+    });
     
-    // Player folder
-    const playerFolder = pane.addFolder({ title: 'Player', expanded: false });
-    playerFolder.addBinding(params, 'PLAYER_SPEED', { min: 1, max: 20 });
-    playerFolder.addBinding(params, 'PLAYER_SIZE', { min: 0.1, max: 2 });
+    // Affichage des touches actives
+    pane.addBlade({
+        view: 'text',
+        label: 'Touches actives',
+        parse: (v) => String(v),
+        value: ''
+    });
     
-    // Outrage folder
-    const outrageFolder = pane.addFolder({ title: 'Outrage System', expanded: false });
-    outrageFolder.addBinding(params, 'OUTRAGE_INCREASE_RATE', { min: 1, max: 50 });
-    outrageFolder.addBinding(params, 'OUTRAGE_DECAY_RATE', { min: 1, max: 20 });
-    outrageFolder.addBinding(params, 'OUTRAGE_POLICE_THRESHOLD', { min: 50, max: 100 });
+    // Vecteur d'entrée (input)
+    const inputFolder = pane.addFolder({ title: 'Vecteur d\'entrée', expanded: true });
+    inputFolder.addBinding(playerMovementData.inputVector, 'x', { 
+        label: 'Input X (Q/D)', 
+        readonly: true,
+        format: (v) => v.toFixed(1)
+    });
+    inputFolder.addBinding(playerMovementData.inputVector, 'y', { 
+        label: 'Input Y (Z/S)', 
+        readonly: true,
+        format: (v) => v.toFixed(1)
+    });
     
-    // Energy folder
-    const energyFolder = pane.addFolder({ title: 'Energy System', expanded: false });
-    energyFolder.addBinding(params, 'ENERGY_DEPLETION_RATE', { min: 1, max: 50 });
-    energyFolder.addBinding(params, 'ENERGY_RECHARGE_RATE', { min: 1, max: 50 });
+    // Vecteur de déplacement instantané
+    const movementFolder = pane.addFolder({ title: 'Déplacement instantané', expanded: true });
+    movementFolder.addBinding(playerMovementData.movementVector, 'x', { 
+        label: 'Movement X', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    movementFolder.addBinding(playerMovementData.movementVector, 'y', { 
+        label: 'Movement Y', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    movementFolder.addBinding(playerMovementData.movementVector, 'z', { 
+        label: 'Movement Z', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
     
-    // Crowd folder
-    const crowdFolder = pane.addFolder({ title: 'Crowds', expanded: false });
-    crowdFolder.addBinding(params, 'CROWD_COUNT', { min: 3, max: 20 });
-    crowdFolder.addBinding(params, 'CROWD_SIZE_MIN', { min: 2, max: 10 });
-    crowdFolder.addBinding(params, 'CROWD_SIZE_MAX', { min: 5, max: 25 });
-    crowdFolder.addBinding(params, 'CROWD_RADIUS', { min: 2, max: 8 });
-    crowdFolder.addBinding(params, 'CROWD_KICKOUT_TIME', { min: 10, max: 60 });
+    // Directions de référence
+    const directionsFolder = pane.addFolder({ title: 'Directions de référence', expanded: false });
+    directionsFolder.addBinding(playerMovementData.forwardDirection, 'x', { 
+        label: 'Forward X', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    directionsFolder.addBinding(playerMovementData.forwardDirection, 'y', { 
+        label: 'Forward Y', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    directionsFolder.addBinding(playerMovementData.forwardDirection, 'z', { 
+        label: 'Forward Z', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
     
-    // Police folder
-    const policeFolder = pane.addFolder({ title: 'Police', expanded: false });
-    policeFolder.addBinding(params, 'POLICE_SPEED_MULTIPLIER', { min: 0.5, max: 3 });
-    policeFolder.addBinding(params, 'POLICE_CATCH_DISTANCE', { min: 1, max: 5 });
+    directionsFolder.addBinding(playerMovementData.rightDirection, 'x', { 
+        label: 'Right X', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    directionsFolder.addBinding(playerMovementData.rightDirection, 'y', { 
+        label: 'Right Y', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
+    directionsFolder.addBinding(playerMovementData.rightDirection, 'z', { 
+        label: 'Right Z', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
     
-    // Score folder
-    const scoreFolder = pane.addFolder({ title: 'Score', expanded: false });
-    scoreFolder.addBinding(params, 'SCORE_ALPHA', { min: 0.1, max: 5 });
-    scoreFolder.addBinding(params, 'SCORE_BETA', { min: 0.01, max: 1 });
+    // Position du joueur
+    const positionFolder = pane.addFolder({ title: 'Position du joueur', expanded: false });
+    positionFolder.addBinding(playerMovementData.position, 'x', { 
+        label: 'Position X', 
+        readonly: true,
+        format: (v) => v.toFixed(2)
+    });
+    positionFolder.addBinding(playerMovementData.position, 'y', { 
+        label: 'Position Y', 
+        readonly: true,
+        format: (v) => v.toFixed(2)
+    });
+    positionFolder.addBinding(playerMovementData.position, 'z', { 
+        label: 'Position Z', 
+        readonly: true,
+        format: (v) => v.toFixed(2)
+    });
     
-    // NPC system folder
-    const npcFolder = pane.addFolder({ title: 'NPC System', expanded: false });
-    npcFolder.addBinding(params, 'NPC_SIZE', { min: 0.1, max: 2 });
-    npcFolder.addBinding(params, 'NPC_GROUP_SIZE', { min: 1, max: 20 });
-    npcFolder.addBinding(params, 'NPC_BASE_SPEED', { min: 0.5, max: 10 });
-    npcFolder.addBinding(params, 'NPC_SPEED_VARIATION', { min: 0, max: 5 });
-    npcFolder.addBinding(params, 'NPC_INTERACTION_RADIUS', { min: 1, max: 10 });
-    npcFolder.addBinding(params, 'NPC_GROUP_RADIUS', { min: 2, max: 15 });
-    npcFolder.addBinding(params, 'NPC_WANDER_RADIUS', { min: 3, max: 20 });
-    npcFolder.addBinding(params, 'NPC_STATE_CHANGE_CHANCE', { min: 0.01, max: 0.5 });
-    npcFolder.addBinding(params, 'NPC_POSITIVE_INFLUENCE_RATE', { min: 0.5, max: 10 });
-    npcFolder.addBinding(params, 'NPC_NEGATIVE_INFLUENCE_RATE', { min: 0.5, max: 5 });
-    npcFolder.addBinding(params, 'NPC_PERSONAL_SPACE', { min: 0.5, max: 5 });
-    npcFolder.addBinding(params, 'NPC_WANDER_FORCE', { min: 0.1, max: 2 });
-    npcFolder.addBinding(params, 'NPC_INTER_GROUP_REPULSION', { min: 0.5, max: 10 });
-    npcFolder.addBinding(params, 'NPC_INTER_GROUP_DISTANCE', { min: 1, max: 8 });
+    // Vitesse instantanée
+    pane.addBinding(playerMovementData, 'speed', { 
+        label: 'Vitesse instantanée', 
+        readonly: true,
+        format: (v) => v.toFixed(3)
+    });
     
-    // Flocking behavior subfolder
-    const flockingFolder = npcFolder.addFolder({ title: 'Flocking Behavior', expanded: false });
-    flockingFolder.addBinding(params, 'NPC_FLOCKING_RADIUS', { min: 1, max: 10 });
-    flockingFolder.addBinding(params, 'NPC_SEPARATION_FORCE', { min: 0.1, max: 5 });
-    flockingFolder.addBinding(params, 'NPC_ALIGNMENT_FORCE', { min: 0.1, max: 3 });
-    flockingFolder.addBinding(params, 'NPC_COHESION_FORCE', { min: 0.1, max: 3 });
-    flockingFolder.addBinding(params, 'NPC_SEPARATION_RADIUS', { min: 0.5, max: 5 });
-    flockingFolder.addBinding(params, 'NPC_ALIGNMENT_RADIUS', { min: 1, max: 8 });
-    flockingFolder.addBinding(params, 'NPC_COHESION_RADIUS', { min: 1, max: 10 });
-    flockingFolder.addBinding(params, 'NPC_MAX_FORCE', { min: 0.5, max: 5 });
-    flockingFolder.addBinding(params, 'NPC_FLOCKING_WEIGHT', { min: 0, max: 1 });
+    console.log('🎛️ Tweakpane initialized - Déplacement instantané ZQSD');
+}
+
+// Fonction pour mettre à jour les données de déplacement
+export function updatePlayerMovementData(debugInfo) {
+    if (!debugInfo) return;
     
-    // Win conditions folder
-    const winFolder = pane.addFolder({ title: 'Win Conditions', expanded: false });
-    winFolder.addBinding(params, 'ADULT_TIME_REQUIRED', { min: 30, max: 300 });
-    winFolder.addBinding(params, 'CHAOS_TIME_REQUIRED', { min: 10, max: 120 });
+    // Mettre à jour les données
+    playerMovementData.inputVector.x = debugInfo.inputVector ? parseFloat(debugInfo.inputVector.split('(')[1].split(',')[0]) : 0;
+    playerMovementData.inputVector.y = debugInfo.inputVector ? parseFloat(debugInfo.inputVector.split(',')[1].split(')')[0]) : 0;
     
-    console.log('🎛️ Tweakpane initialized');
+    if (debugInfo.movement) {
+        const movementMatch = debugInfo.movement.match(/\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/);
+        if (movementMatch) {
+            playerMovementData.movementVector.x = parseFloat(movementMatch[1]);
+            playerMovementData.movementVector.y = parseFloat(movementMatch[2]);
+            playerMovementData.movementVector.z = parseFloat(movementMatch[3]);
+            
+            // Calculer la vitesse instantanée
+            playerMovementData.speed = Math.sqrt(
+                playerMovementData.movementVector.x * playerMovementData.movementVector.x +
+                playerMovementData.movementVector.y * playerMovementData.movementVector.y +
+                playerMovementData.movementVector.z * playerMovementData.movementVector.z
+            );
+        }
+    }
+    
+    if (debugInfo.forward) {
+        const forwardMatch = debugInfo.forward.match(/\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/);
+        if (forwardMatch) {
+            playerMovementData.forwardDirection.x = parseFloat(forwardMatch[1]);
+            playerMovementData.forwardDirection.y = parseFloat(forwardMatch[2]);
+            playerMovementData.forwardDirection.z = parseFloat(forwardMatch[3]);
+        }
+    }
+    
+    if (debugInfo.right) {
+        const rightMatch = debugInfo.right.match(/\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/);
+        if (rightMatch) {
+            playerMovementData.rightDirection.x = parseFloat(rightMatch[1]);
+            playerMovementData.rightDirection.y = parseFloat(rightMatch[2]);
+            playerMovementData.rightDirection.z = parseFloat(rightMatch[3]);
+        }
+    }
+    
+    if (debugInfo.position) {
+        const positionMatch = debugInfo.position.match(/\(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/);
+        if (positionMatch) {
+            playerMovementData.position.x = parseFloat(positionMatch[1]);
+            playerMovementData.position.y = parseFloat(positionMatch[2]);
+            playerMovementData.position.z = parseFloat(positionMatch[3]);
+        }
+    }
+    
+    playerMovementData.activeKeys = debugInfo.input || '';
+    
+    // Actualiser le panneau
+    if (pane) {
+        pane.refresh();
+    }
 }
 
 // Export pane for external access

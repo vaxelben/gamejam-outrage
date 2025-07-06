@@ -10,6 +10,13 @@ export class SceneManager {
         this.camera = null;
         this.planet = null;
         this.planetRadius = 0;
+        
+        // HUD system for helpers (like drei HUD)
+        this.hudScene = null;
+        this.hudCamera = null;
+        this.hudRenderer = null;
+        this.hudCanvas = null;
+        this.showHelpers = true;
     }
 
     async initialize() {
@@ -47,6 +54,9 @@ export class SceneManager {
 
         // Create planet
         this.createPlanet();
+
+        // Add debugging helpers with HUD system
+        this.initializeHUD();
 
         // Setup window resize handling
         this.setupResizeHandler();
@@ -107,6 +117,195 @@ export class SceneManager {
             normalMap: 'textures/planet_normal.jpg',
             inScene: this.scene.children.includes(this.planet)
         });
+    }
+
+    initializeHUD() {
+        // Create HUD canvas overlay
+        this.hudCanvas = document.createElement('canvas');
+        this.hudCanvas.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            width: 200px;
+            height: 200px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(this.hudCanvas);
+
+        // Create HUD renderer
+        this.hudRenderer = new THREE.WebGLRenderer({ 
+            canvas: this.hudCanvas, 
+            antialias: true,
+            alpha: true 
+        });
+        this.hudRenderer.setSize(200, 200);
+        this.hudRenderer.setPixelRatio(window.devicePixelRatio);
+        this.hudRenderer.setClearColor(0x000000, 0.1);
+
+        // Create HUD scene
+        this.hudScene = new THREE.Scene();
+
+        // Create HUD camera (orthographic for better helper visibility)
+        this.hudCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 100);
+        this.hudCamera.position.set(10, 10, 10);
+        this.hudCamera.lookAt(0, 0, 0);
+
+        // Add helpers to HUD scene
+        this.addHUDHelpers();
+
+        console.log('🔧 HUD system initialized with helpers');
+    }
+
+    addHUDHelpers() {
+        // Add axes helper to HUD scene
+        this.axesHelper = new THREE.AxesHelper(8);
+        this.hudScene.add(this.axesHelper);
+
+        // Create a mini camera representation for the HUD
+        this.createMiniCameraHelper();
+
+        // Add some ambient light to HUD scene
+        const hudLight = new THREE.AmbientLight(0xffffff, 0.8);
+        this.hudScene.add(hudLight);
+
+        // Add directional light for better visibility
+        const hudDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        hudDirectionalLight.position.set(5, 5, 5);
+        this.hudScene.add(hudDirectionalLight);
+
+        // Add labels for axes
+        this.addHUDLabels();
+
+        // Add player direction indicator
+        this.createPlayerDirectionIndicator();
+    }
+
+    createMiniCameraHelper() {
+        // Create a visual representation of the main camera in the HUD
+        const cameraGeometry = new THREE.ConeGeometry(0.5, 2, 4);
+        const cameraMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        this.miniCamera = new THREE.Mesh(cameraGeometry, cameraMaterial);
+        this.miniCamera.rotateX(-Math.PI / 2); // Point forward
+        this.hudScene.add(this.miniCamera);
+
+        // Add camera direction indicator
+        const directionGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
+        const directionMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.6
+        });
+        
+        this.cameraDirection = new THREE.Mesh(directionGeometry, directionMaterial);
+        this.cameraDirection.rotateX(-Math.PI / 2);
+        this.cameraDirection.position.set(0, 0, 2);
+        this.hudScene.add(this.cameraDirection);
+    }
+
+    createPlayerDirectionIndicator() {
+        // Create an arrow to show player direction
+        const arrowGeometry = new THREE.ConeGeometry(0.3, 1.5, 6);
+        const arrowMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0xff4444,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        this.playerDirection = new THREE.Mesh(arrowGeometry, arrowMaterial);
+        this.playerDirection.position.set(0, 0, -4);
+        this.playerDirection.rotateX(-Math.PI / 2);
+        this.hudScene.add(this.playerDirection);
+    }
+
+    addHUDLabels() {
+        // Create text labels for axes (using HTML overlay)
+        const labelContainer = document.createElement('div');
+        labelContainer.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 220px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px;
+            border-radius: 4px;
+            z-index: 1001;
+            line-height: 1.3;
+            border: 1px solid #333;
+            pointer-events: none;
+        `;
+        
+        labelContainer.innerHTML = `
+            <div style="color: #ff6b6b; font-weight: bold;">🔴 X-Axis (Red)</div>
+            <div style="color: #6bcf7f; font-weight: bold;">🟢 Y-Axis (Green)</div>
+            <div style="color: #4d9ef7; font-weight: bold;">🔵 Z-Axis (Blue)</div>
+            <div style="color: #00ff00; font-weight: bold;">📷 Camera (Green)</div>
+            <div style="color: #ff4444; font-weight: bold;">🚀 Player Direction (Red)</div>
+            <div style="margin-top: 5px; color: #ccc;">Press H to toggle</div>
+        `;
+        
+        this.hudLabels = labelContainer;
+        document.body.appendChild(labelContainer);
+    }
+
+    // Toggle HUD visibility
+    toggleHelpers(visible = null) {
+        this.showHelpers = visible !== null ? visible : !this.showHelpers;
+        
+        if (this.hudCanvas) {
+            this.hudCanvas.style.display = this.showHelpers ? 'block' : 'none';
+        }
+        
+        if (this.hudLabels) {
+            this.hudLabels.style.display = this.showHelpers ? 'block' : 'none';
+        }
+        
+        console.log(`🔧 HUD helpers ${this.showHelpers ? 'shown' : 'hidden'}`);
+    }
+
+    // Update HUD to reflect main camera orientation and player direction
+    updateHUD() {
+        if (!this.hudScene || !this.showHelpers) return;
+
+        // Update mini camera orientation to match main camera
+        if (this.miniCamera && this.cameraDirection) {
+            // Get main camera direction
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            
+            // Update mini camera rotation to show main camera direction
+            this.miniCamera.lookAt(cameraDirection);
+            this.cameraDirection.lookAt(cameraDirection);
+            
+            // Scale based on distance to make it more visible
+            const distance = this.camera.position.length();
+            const scale = Math.max(0.5, Math.min(2.0, distance / 20));
+            this.miniCamera.scale.setScalar(scale);
+        }
+
+        // Update player direction indicator
+        if (this.playerDirection) {
+            // Get player system to get player direction
+            const playerSystem = serviceContainer.resolve('playerSystem');
+            if (playerSystem) {
+                const playerPosition = playerSystem.getPlayerPosition();
+                const playerNormal = playerSystem.getPlayerNormal();
+                
+                // Position the player direction indicator
+                this.playerDirection.position.copy(playerNormal.clone().multiplyScalar(-6));
+                this.playerDirection.lookAt(playerNormal);
+            }
+        }
     }
 
     addPlanetVariation(geometry) {
@@ -216,9 +415,16 @@ export class SceneManager {
         this.lastCameraUp.copy(cameraUp);
     }
 
-    // Render the scene
+    // Render the scene and HUD
     render() {
+        // Render main scene
         this.renderer.render(this.scene, this.camera);
+        
+        // Update and render HUD
+        this.updateHUD();
+        if (this.hudRenderer && this.hudScene && this.showHelpers) {
+            this.hudRenderer.render(this.hudScene, this.hudCamera);
+        }
     }
 
     // Add object to scene
@@ -250,6 +456,21 @@ export class SceneManager {
     shutdown() {
         if (this.renderer) {
             this.renderer.dispose();
+        }
+        
+        // Clean up HUD
+        if (this.hudRenderer) {
+            this.hudRenderer.dispose();
+        }
+        
+        if (this.hudCanvas) {
+            document.body.removeChild(this.hudCanvas);
+            this.hudCanvas = null;
+        }
+        
+        if (this.hudLabels) {
+            document.body.removeChild(this.hudLabels);
+            this.hudLabels = null;
         }
         
         if (this.scene) {
