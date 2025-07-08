@@ -24,6 +24,9 @@ export class InputManager {
     setupKeyboardListeners() {
         // Global keyboard listeners
         window.addEventListener('keydown', (event) => {
+            // Prevent repeated events when a key is held down
+            if (event.repeat) return;
+
             const key = event.key.toLowerCase();
             this.keys.set(key, true);
             this.notifyListeners('keydown', { key, originalEvent: event });

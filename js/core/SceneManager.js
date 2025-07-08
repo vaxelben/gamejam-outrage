@@ -16,7 +16,7 @@ export class SceneManager {
         this.hudCamera = null;
         this.hudRenderer = null;
         this.hudCanvas = null;
-        this.showHelpers = true;
+        this.showHelpers = false;
     }
 
     async initialize() {
@@ -61,12 +61,15 @@ export class SceneManager {
         // Setup window resize handling
         this.setupResizeHandler();
 
+        // Hide helpers by default
+        this.toggleHelpers(this.showHelpers);
+
         console.log('🎬 Scene Manager initialized');
     }
 
     createLights() {
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.2);
         this.scene.add(ambientLight);
 
         // Directional light with shadows

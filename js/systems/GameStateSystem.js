@@ -41,14 +41,14 @@ export class GameStateSystem extends IGameSystem {
         this.gameTime += deltaTime;
         
         // Energy depletion over time
-        if (this.currentMask !== null) {
+        /* if (this.currentMask !== null) {
             this.addEnergy(-params.ENERGY_DEPLETION_RATE * deltaTime);
             
             // Force neutral if energy depleted
             if (this.energy <= 0) {
                 this.setMask(null);
             }
-        }
+        } */
         
         // Outrage decay when not in crowd
         if (!this.inCrowd) {

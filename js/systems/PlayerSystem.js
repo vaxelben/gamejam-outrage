@@ -244,8 +244,66 @@ export class PlayerSystem extends IGameSystem {
         
         if (input.x === 0 && input.y === 0) return;
         
-        // Use linear movement with tangent vectors
-        this.handleLinearMovement(input, deltaTime);
+        // Use quaternion-based movement for constant speed
+        this.handleQuaternionMovement(input, deltaTime);
+    }
+    
+    handleQuaternionMovement(input, deltaTime) {
+        const speed = params.PLAYER_SPEED * deltaTime;
+        const radius = this.planetRadius + params.PLAYER_SIZE / 2;
+
+        // Get camera and current position
+        const camera = serviceContainer.resolve('camera');
+        if (!camera) return;
+        const currentPos = this.transform.position.clone();
+
+        // 1. Get Player's "Up" Vector (the normal to the sphere surface)
+        const surfaceNormal = currentPos.clone().normalize();
+
+        // 2. Get a Stable "Right" Vector from the Camera
+        // We use the camera's local X-axis, which is not affected by pitch.
+        const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+
+        // 3. Create Player-Relative Movement Vectors on the Tangent Plane
+        // Project the stable cameraRight vector onto the tangent plane to get the player's right.
+        const playerRight = cameraRight.clone().addScaledVector(surfaceNormal, -cameraRight.dot(surfaceNormal));
+        playerRight.normalize();
+
+        // The player's forward is perpendicular to their right and their up (surfaceNormal).
+        // The order of the cross product is important to get "forward" instead of "backward".
+        const playerForward = new THREE.Vector3().crossVectors(surfaceNormal, playerRight);
+
+        // 4. Calculate Total Movement Vector
+        // Input Y (Z/S -> +1/-1) moves along playerForward.
+        // Input X (Q/D -> +1/-1) moves along playerRight. We must negate X as Q (+1) should move left.
+        const movementDirection = playerForward.clone().multiplyScalar(input.y).add(playerRight.clone().multiplyScalar(-input.x));
+        
+        // If there's no movement, no need to do anything else.
+        if (movementDirection.lengthSq() === 0) return;
+        
+        movementDirection.normalize();
+
+        if (movementDirection.length() > 0.01) {
+            this.lastMovementDirection.copy(movementDirection);
+        }
+
+        // 5. Calculate Rotation from Movement
+        // The axis of rotation is perpendicular to the direction of movement.
+        const rotationAxis = new THREE.Vector3().crossVectors(surfaceNormal, movementDirection);
+        rotationAxis.normalize();
+
+        // The angle of rotation is the distance to travel divided by the sphere's radius.
+        const angularDistance = speed / radius;
+        const rotation = new THREE.Quaternion().setFromAxisAngle(rotationAxis, angularDistance);
+
+        // 6. Apply Rotation to Player Position
+        const newPosition = currentPos.clone().applyQuaternion(rotation);
+        
+        // Ensure the player stays exactly on the surface.
+        newPosition.normalize().multiplyScalar(radius);
+        
+        this.transform.setPosition(newPosition.x, newPosition.y, newPosition.z);
+        this.normal.copy(newPosition.clone().normalize());
     }
     
     handleLinearMovement(input, deltaTime) {
@@ -328,30 +386,6 @@ export class PlayerSystem extends IGameSystem {
         
         // Update player normal
         this.normal.copy(newPosition.clone().normalize());
-        
-        // Enhanced debug logging and UI update
-        if (input.x !== 0 || input.y !== 0) {
-            const debugInfo = {
-                input: `Z:${input.y > 0 ? '✓' : ''}${input.y < 0 ? '✗' : ''} S:${input.y < 0 ? '✓' : ''}${input.y > 0 ? '✗' : ''} Q:${input.x > 0 ? '✓' : ''}${input.x < 0 ? '✗' : ''} D:${input.x < 0 ? '✓' : ''}${input.x > 0 ? '✗' : ''}`,
-                inputVector: `(${input.x.toFixed(1)}, ${input.y.toFixed(1)})`,
-                forward: `(${forwardDirection.x.toFixed(2)}, ${forwardDirection.y.toFixed(2)}, ${forwardDirection.z.toFixed(2)})`,
-                right: `(${rightDirection.x.toFixed(2)}, ${rightDirection.y.toFixed(2)}, ${rightDirection.z.toFixed(2)})`,
-                movement: `(${movement.x.toFixed(3)}, ${movement.y.toFixed(3)}, ${movement.z.toFixed(3)})`,
-                position: `(${newPosition.x.toFixed(2)}, ${newPosition.y.toFixed(2)}, ${newPosition.z.toFixed(2)})`,
-                sphericalCoords: {
-                    lat: (Math.asin(newPosition.y / radius) * 180 / Math.PI).toFixed(1) + '°',
-                    lon: (Math.atan2(newPosition.z, newPosition.x) * 180 / Math.PI).toFixed(1) + '°'
-                }
-            };
-            
-            // Update debug UI
-            this.updateDebugUI(debugInfo);
-            
-            // Optional console logging for development
-            if (this.showDebugUI) {
-                console.log('🎮 ZQSD Movement:', debugInfo);
-            }
-        }
     }
     
 

@@ -66,6 +66,18 @@ export class GameEngine {
             this.sceneManager.updateCamera(playerSystem.getPlayerPosition());
         }
         
+        // Billboard NPCs
+        const npcSystem = this.systemManager.getSystem('npc');
+        const camera = this.sceneManager.camera;
+        if (npcSystem && camera) {
+            const npcs = npcSystem.getNPCs();
+            for (const npc of npcs) {
+                if (npc.renderer && npc.renderer.mesh) {
+                    npc.renderer.mesh.quaternion.copy(camera.quaternion);
+                }
+            }
+        }
+        
         // Render
         this.sceneManager.render();
         

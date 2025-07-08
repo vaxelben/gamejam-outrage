@@ -6,19 +6,19 @@ export const params = {
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 0.5,
+    PLAYER_SIZE: 1.0,
     
     // Camera settings
     CAMERA_DISTANCE: 20,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Outrage system
-    OUTRAGE_INCREASE_RATE: 15,    // Per second in wrong crowd
-    OUTRAGE_DECAY_RATE: 5,        // Per second when not in crowd
+    OUTRAGE_INCREASE_RATE: 0.1,    // Per second in wrong crowd
+    OUTRAGE_DECAY_RATE: 0.05,        // Per second when not in crowd
     OUTRAGE_POLICE_THRESHOLD: 90, // % to spawn police
     
     // Energy system
-    ENERGY_DEPLETION_RATE: 20,    // Per second when wearing mask
+    ENERGY_DEPLETION_RATE: 2,    // Per second when wearing mask
     ENERGY_RECHARGE_RATE: 25,     // Per second in correct crowd
     
     // Crowd system
@@ -45,10 +45,10 @@ export const params = {
     CHAOS_TIME_REQUIRED: 30,      // 30 seconds
     
     // NPC system parameters
-    NPC_SIZE: 0.5,                   // Size of individual NPCs
+    NPC_SIZE: 1.0,                   // Size of individual NPCs
     NPC_GROUP_SIZE: 20,              // Number of NPCs per group
-    NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
-    NPC_SPEED_VARIATION: 2,
+    NPC_BASE_SPEED: 5,               // Base movement speed for NPCs
+    NPC_SPEED_VARIATION: 5,
     NPC_INTERACTION_RADIUS: 3,       // Distance for NPC-player interaction
     NPC_GROUP_RADIUS: 50,             // Distance for NPCs to consider themselves in same group
     NPC_WANDER_RADIUS: 8,            // Maximum distance for wandering behavior
@@ -56,9 +56,9 @@ export const params = {
     NPC_STATE_CHANGE_CHANCE: 0.1,    // Probability per second of state change
     NPC_POSITIVE_INFLUENCE_RATE: 2,  // Outrage increase when NPC likes player mask
     NPC_NEGATIVE_INFLUENCE_RATE: 1,  // Outrage decrease when NPC dislikes player mask
-    NPC_SAME_MASK_INFLUENCE: 1,       // Outrage reduction when same mask
-    NPC_DIFFERENT_MASK_INFLUENCE: 2,  // Outrage increase when different mask
-    NPC_ENERGY_DRAIN_RATE: 5,        // Energy drain when interacting negatively
+    NPC_SAME_MASK_INFLUENCE: 0.01,       // Outrage reduction when same mask
+    NPC_DIFFERENT_MASK_INFLUENCE: 0.2,  // Outrage increase when different mask
+    NPC_ENERGY_DRAIN_RATE: 0.1,        // Energy drain when interacting negatively
     NPC_PERSONAL_SPACE: 2.5,         // Minimum distance between NPCs (intimacy zone)
     
     // Flocking behavior parameters (Craig Reynolds algorithm)
@@ -66,7 +66,7 @@ export const params = {
     NPC_SEPARATION_FORCE: 3.0,       // Force to avoid crowding (separation)
     NPC_ALIGNMENT_FORCE: 2.0,        // Force to align with neighbors (alignment)
     NPC_COHESION_FORCE: 2.5,         // Force to move toward group center (cohesion)
-    NPC_SEPARATION_RADIUS: 2.0,      // Distance for separation behavior
+    NPC_SEPARATION_RADIUS: 3.0,      // Distance for separation behavior
     NPC_ALIGNMENT_RADIUS: 6.0,       // Distance for alignment behavior
     NPC_COHESION_RADIUS: 8.0,        // Distance for cohesion behavior
     NPC_MAX_FORCE: 4.0,              // Maximum force that can be applied
@@ -85,7 +85,9 @@ export const params = {
     // Game balancing
     GAME_SPEED_MULTIPLIER: 1.0,      // Overall game speed multiplier
     DIFFICULTY_SCALING: 1.2,         // How much difficulty increases over time
-    PLAYER_INFLUENCE_RADIUS: 4.0,    // How far player influence extends
+    PLAYER_INFLUENCE_RADIUS: 10,
+    PLAYER_ATTRACTION_FORCE: 0.5,
+    PLAYER_REPULSION_FORCE: 1.0,
     
     // Visual settings
     PLANET_TEXTURE_SCALE: 1.0,       // Scale of planet texture
@@ -122,7 +124,7 @@ export function initTweakpane() {
     
     pane = new Pane({ 
         title: 'Déplacement Instantané ZQSD', 
-        expanded: true,
+        expanded: false,
         width: 350
     });
     

@@ -81,6 +81,10 @@ export class NPCSystem extends IGameSystem {
         return group;
     }
 
+    getNPCs() {
+        return this.npcs;
+    }
+
     getMaskColor(maskType) {
         const colors = {
             1: new THREE.Color(0.2, 0.4, 0.8),    // Blue - Conservatives
@@ -95,35 +99,94 @@ export class NPCSystem extends IGameSystem {
     }
 
     update(deltaTime) {
+        // --- Logic update (throttled) ---
         this.lastUpdateTime += deltaTime;
-        
-        // Throttle updates for performance
-        if (this.lastUpdateTime < this.updateFrequency) {
-            return;
+        if (this.lastUpdateTime >= this.updateFrequency) {
+            const actualDeltaTime = this.lastUpdateTime;
+            this.fixedUpdate(actualDeltaTime);
+            this.lastUpdateTime = 0;
         }
-        
-        const actualDeltaTime = this.lastUpdateTime;
-        this.lastUpdateTime = 0;
-        
-        // Update all NPCs
+
+        // --- Movement and rendering update (every frame) ---
         for (const npc of this.npcs) {
-            this.updateNPC(npc, actualDeltaTime);
+            if (!npc.transform || !npc.renderer) continue;
+
+            // Apply movement based on current velocity
+            this.applyNPCMovement(npc, deltaTime);
+        }
+
+        // --- Collision resolution (every frame) ---
+        this.resolveCollisions();
+
+        // --- Final renderer update (every frame) ---
+        for (const npc of this.npcs) {
+            if (!npc.transform || !npc.renderer) continue;
+            
+            // Update renderer transform
+            npc.renderer.updateTransform(npc.transform);
+        }
+    }
+
+    resolveCollisions() {
+        for (let i = 0; i < this.npcs.length; i++) {
+            for (let j = i + 1; j < this.npcs.length; j++) {
+                const npc1 = this.npcs[i];
+                const npc2 = this.npcs[j];
+
+                const distance = npc1.transform.position.distanceTo(npc2.transform.position);
+                const minDistance = params.NPC_SIZE; // Use size as collision diameter
+
+                if (distance < minDistance) {
+                    const overlap = minDistance - distance;
+                    const direction = new THREE.Vector3().subVectors(npc1.transform.position, npc2.transform.position).normalize();
+                    
+                    // Move each NPC back by half of the overlap
+                    const correction = direction.multiplyScalar(overlap / 2);
+                    npc1.transform.position.add(correction);
+                    npc2.transform.position.sub(correction);
+
+                    // Re-project to surface after correction
+                    this.projectToSurface(npc1);
+                    this.projectToSurface(npc2);
+                }
+            }
+        }
+    }
+
+    fixedUpdate(deltaTime) {
+        // Update all NPCs' logic
+        for (const npc of this.npcs) {
+            this.updateNPCLogic(npc, deltaTime);
+            
+            // Apply friction
+            npc.velocity.multiplyScalar(0.95);
         }
         
         // Update group behaviors
-        this.updateGroupBehaviors(actualDeltaTime);
+        this.updateGroupBehaviors(deltaTime);
         
         // Handle player interactions
         this.handlePlayerInteractions();
         
-        // Debug flocking occasionally (enable via console: window.debugFlocking = true)
+        // Debug flocking occasionally
         if (window.debugFlocking && Math.random() < 0.01) {
             this.debugFlockingForces(true);
         }
     }
 
+    updateNPCLogic(npc, deltaTime) {
+        // Update NPC state machine
+        this.updateNPCState(npc, deltaTime);
+        
+        // Update NPC forces to change velocity
+        this.updateNPCForces(npc);
+    }
+
     updateNPC(npc, deltaTime) {
         if (!npc.transform || !npc.renderer) return;
+        
+        // This method is now split into updateNPCLogic and the movement part in update()
+        // Kept for compatibility if called from elsewhere, but should be deprecated.
         
         // Update NPC state machine
         this.updateNPCState(npc, deltaTime);
@@ -209,7 +272,8 @@ export class NPCSystem extends IGameSystem {
             alignment: new THREE.Vector3(),
             cohesion: new THREE.Vector3(),
             wandering: new THREE.Vector3(),
-            interGroupRepulsion: new THREE.Vector3()
+            interGroupRepulsion: new THREE.Vector3(),
+            playerInfluence: new THREE.Vector3()
         };
         
         // Get neighbors for flocking behavior
@@ -238,43 +302,63 @@ export class NPCSystem extends IGameSystem {
         // Limit the maximum flocking force
         this.limitForce(totalFlockingForce, params.NPC_MAX_FORCE * (npc.flockingBoost || 1.0));
         
+        // Calculate player influence force
+        this.calculatePlayerInfluence(npc, forces.playerInfluence);
+
         // Apply all forces
         npc.velocity.add(totalFlockingForce.multiplyScalar(params.NPC_FLOCKING_WEIGHT));
         npc.velocity.add(forces.wandering.multiplyScalar(params.NPC_WANDER_FORCE));
         npc.velocity.add(forces.interGroupRepulsion.multiplyScalar(params.NPC_INTER_GROUP_REPULSION));
+        npc.velocity.add(forces.playerInfluence);
         
         // Apply speed limits
         this.limitNPCSpeed(npc);
+    }
+
+    calculatePlayerInfluence(npc, influenceForce) {
+        const playerSystem = serviceContainer.resolve('playerSystem');
+        if (!playerSystem) return;
+
+        const playerMask = playerSystem.getCurrentMask();
+        if (playerMask === null) return; // No influence if player is neutral
+
+        const playerPosition = playerSystem.getPlayerPosition();
+        const distance = npc.transform.distanceTo({ position: playerPosition });
+
+        if (distance < params.PLAYER_INFLUENCE_RADIUS) {
+            // Vector from player to NPC
+            const direction = new THREE.Vector3().subVectors(npc.transform.position, playerPosition).normalize();
+            
+            if (npc.maskType === playerMask) {
+                // Attraction force (pulls NPC towards player)
+                const attractionStrength = params.PLAYER_ATTRACTION_FORCE * (1 - distance / params.PLAYER_INFLUENCE_RADIUS);
+                influenceForce.add(direction.multiplyScalar(-attractionStrength)); // Negative to pull towards player
+            } else {
+                // Repulsion force (pushes NPC away from player)
+                const repulsionStrength = params.PLAYER_REPULSION_FORCE * (1 - distance / params.PLAYER_INFLUENCE_RADIUS);
+                influenceForce.add(direction.multiplyScalar(repulsionStrength));
+            }
+        }
     }
 
     // Craig Reynolds Flocking Algorithm Implementation
     
     // Rule 1: Separation - avoid crowding neighbors (respects personal space)
     calculateFlockingSeparation(npc, neighbors, separationForce) {
-        const sameGroupNeighbors = neighbors.filter(n => n.maskType === npc.maskType);
         let count = 0;
         
-        for (const neighbor of sameGroupNeighbors) {
+        for (const neighbor of neighbors) {
             const distance = npc.transform.distanceTo(neighbor.transform);
             
-            // Use personal space for intimacy zone, but still use separation radius for detection
-            const personalSpaceViolation = distance < params.NPC_PERSONAL_SPACE;
-            const withinSeparationRadius = distance < params.NPC_SEPARATION_RADIUS;
-            
-            if (withinSeparationRadius && distance > 0) {
+            if (distance < params.NPC_SEPARATION_RADIUS && distance > 0) {
+                // Calculate a normalized vector pointing away from the neighbor
                 const direction = new THREE.Vector3()
                     .subVectors(npc.transform.position, neighbor.transform.position)
                     .normalize();
                 
-                // Much stronger repulsion calculation to prevent touching
-                let repulsionStrength;
-                if (personalSpaceViolation) {
-                    // Exponential repulsion when too close - very strong
-                    repulsionStrength = Math.pow(params.NPC_PERSONAL_SPACE / Math.max(distance, 0.1), 3);
-                } else {
-                    // Regular repulsion based on distance
-                    repulsionStrength = Math.pow(params.NPC_SEPARATION_RADIUS / distance, 2);
-                }
+                // The force should be stronger the closer the NPCs are.
+                // Using an inverse square relationship creates a strong "force field".
+                const repulsionStrength = Math.pow(params.NPC_SEPARATION_RADIUS / distance, 2);
                 
                 direction.multiplyScalar(repulsionStrength);
                 separationForce.add(direction);
@@ -284,8 +368,8 @@ export class NPCSystem extends IGameSystem {
         
         if (count > 0) {
             separationForce.divideScalar(count);
-            // Don't normalize to maintain strong repulsion forces
-            this.limitForce(separationForce, params.NPC_MAX_FORCE * 2); // Allow stronger separation
+            // Allow separation to be a much stronger force
+            this.limitForce(separationForce, params.NPC_MAX_FORCE * 3);
         }
     }
     
@@ -414,9 +498,6 @@ export class NPCSystem extends IGameSystem {
         
         // Project to planet surface
         this.projectToSurface(npc);
-        
-        // Apply friction
-        npc.velocity.multiplyScalar(0.95);
     }
 
     projectToSurface(npc) {
@@ -520,6 +601,7 @@ export class NPCSystem extends IGameSystem {
             // Same mask - positive interaction
             const influence = params.NPC_SAME_MASK_INFLUENCE;
             gameStateSystem.addOutrage(-influence);
+            gameStateSystem.addEnergy(params.ENERGY_RECHARGE_RATE / 60); // Recharge per frame
             
             // NPC becomes more cohesive and attracted to player
             npc.state = 'GATHERING';
@@ -533,6 +615,7 @@ export class NPCSystem extends IGameSystem {
             // Different mask - negative interaction
             const influence = params.NPC_DIFFERENT_MASK_INFLUENCE;
             gameStateSystem.addOutrage(influence);
+            gameStateSystem.addEnergy(-params.NPC_ENERGY_DRAIN_RATE);
             
             // NPC becomes more separated and avoids player
             npc.state = 'IDLE'; // Changed from FLEEING to IDLE for better flocking

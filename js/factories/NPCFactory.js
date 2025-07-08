@@ -1,10 +1,12 @@
 // factories/NPCFactory.js - NPC Factory following Open/Closed Principle
+import * as THREE from 'three';
 import { Transform } from '../components/Transform.js';
 import { Renderer } from '../components/Renderer.js';
 import { params } from '../params.js';
 
 // Base NPC types registry
 const npcTypes = new Map();
+const textureLoader = new THREE.TextureLoader();
 
 // Register NPC type
 export function registerNPCType(typeName, createFunction) {
@@ -102,10 +104,13 @@ function createBasicNPC(config) {
 
     // Create renderer immediately
     if (scene) {
-        const geometry = new THREE.SphereGeometry((params.NPC_SIZE || 0.5) / 2, 12, 12);
+        const geometry = new THREE.PlaneGeometry((params.NPC_SIZE || 0.5), (params.NPC_SIZE || 0.5));
+        const texture = textureLoader.load('textures/sprites/group_neutre.png');
         const material = new THREE.MeshLambertMaterial({ 
+            map: texture,
             color: color,
-            transparent: false
+            transparent: true,
+            side: THREE.DoubleSide
         });
         
         npc.renderer = new Renderer(geometry, material);
