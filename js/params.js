@@ -6,10 +6,10 @@ export const params = {
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 1.0,
+    PLAYER_SIZE: 0.5,
     
     // Camera settings
-    CAMERA_DISTANCE: 20,
+    CAMERA_DISTANCE: 10,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Outrage system
@@ -45,28 +45,28 @@ export const params = {
     CHAOS_TIME_REQUIRED: 30,      // 30 seconds
     
     // NPC system parameters
-    NPC_SIZE: 1.0,                   // Size of individual NPCs
+    NPC_SIZE: 0.5,                   // Size of individual NPCs
     NPC_GROUP_SIZE: 20,              // Number of NPCs per group
-    NPC_BASE_SPEED: 5,               // Base movement speed for NPCs
-    NPC_SPEED_VARIATION: 5,
-    NPC_INTERACTION_RADIUS: 3,       // Distance for NPC-player interaction
-    NPC_GROUP_RADIUS: 50,             // Distance for NPCs to consider themselves in same group
-    NPC_WANDER_RADIUS: 8,            // Maximum distance for wandering behavior
+    NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
+    NPC_SPEED_VARIATION: 8,
+    NPC_INTERACTION_RADIUS: 1.5,       // Distance for NPC-player interaction
+    NPC_GROUP_RADIUS: 30,             // Distance for NPCs to consider themselves in same group
+    NPC_WANDER_RADIUS: 20,            // Maximum distance for wandering behavior
     NPC_MIN_STATE_DURATION: 2,       // Minimum time in seconds before state change
-    NPC_STATE_CHANGE_CHANCE: 0.1,    // Probability per second of state change
+    NPC_STATE_CHANGE_CHANCE: 0.01,    // Probability per second of state change
     NPC_POSITIVE_INFLUENCE_RATE: 2,  // Outrage increase when NPC likes player mask
     NPC_NEGATIVE_INFLUENCE_RATE: 1,  // Outrage decrease when NPC dislikes player mask
     NPC_SAME_MASK_INFLUENCE: 0.01,       // Outrage reduction when same mask
     NPC_DIFFERENT_MASK_INFLUENCE: 0.2,  // Outrage increase when different mask
     NPC_ENERGY_DRAIN_RATE: 0.1,        // Energy drain when interacting negatively
-    NPC_PERSONAL_SPACE: 2.5,         // Minimum distance between NPCs (intimacy zone)
+    NPC_PERSONAL_SPACE: 1.3,         // Minimum distance between NPCs (intimacy zone)
     
     // Flocking behavior parameters (Craig Reynolds algorithm)
-    NPC_FLOCKING_RADIUS: 8.0,        // Distance to consider other NPCs for flocking
-    NPC_SEPARATION_FORCE: 3.0,       // Force to avoid crowding (separation)
+    NPC_FLOCKING_RADIUS: 4.0,        // Distance to consider other NPCs for flocking
+    NPC_SEPARATION_FORCE: 2.0,       // Force to avoid crowding (separation)
     NPC_ALIGNMENT_FORCE: 2.0,        // Force to align with neighbors (alignment)
-    NPC_COHESION_FORCE: 2.5,         // Force to move toward group center (cohesion)
-    NPC_SEPARATION_RADIUS: 3.0,      // Distance for separation behavior
+    NPC_COHESION_FORCE: 2.0,         // Force to move toward group center (cohesion)
+    NPC_SEPARATION_RADIUS: 2.0,      // Distance for separation behavior
     NPC_ALIGNMENT_RADIUS: 6.0,       // Distance for alignment behavior
     NPC_COHESION_RADIUS: 8.0,        // Distance for cohesion behavior
     NPC_MAX_FORCE: 4.0,              // Maximum force that can be applied
