@@ -6,7 +6,7 @@ export const params = {
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 0.5,
+    PLAYER_SIZE: 1.0,
     
     // Camera settings
     CAMERA_DISTANCE: 10,

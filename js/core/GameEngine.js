@@ -78,6 +78,11 @@ export class GameEngine {
             }
         }
         
+        // Billboard Player
+        if (playerSystem && playerSystem.renderer && playerSystem.renderer.mesh && camera) {
+            playerSystem.renderer.mesh.quaternion.copy(camera.quaternion);
+        }
+        
         // Render
         this.sceneManager.render();
         

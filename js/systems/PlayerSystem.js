@@ -1,4 +1,5 @@
 // systems/PlayerSystem.js - Player management following SOLID principles
+import * as THREE from 'three';
 import { IGameSystem } from '../interfaces/IGameSystem.js';
 import { Transform } from '../components/Transform.js';
 import { Renderer } from '../components/Renderer.js';
@@ -25,6 +26,20 @@ export class PlayerSystem extends IGameSystem {
         this.normal = new THREE.Vector3(0, 1, 0); // Persistent normal vector
         this.lastMovementDirection = new THREE.Vector3(0, 0, 1); // Track last movement direction
         
+        // Animation
+        this.textureLoader = new THREE.TextureLoader();
+        this.playerFSM = {
+            currentState: 'idle',
+            stateChanged: false,
+            animations: {
+                idle: { row: 0, frames: 4, speed: 0.2, sheetCols: 4 },
+                walk: { row: 1, frames: 4, speed: 0.1, sheetCols: 4 },
+                jump: { row: 2, frames: 4, speed: 0.15, sheetCols: 4 }
+            },
+            currentFrame: 0,
+            frameTimer: 0
+        };
+
         // Debug UI
         this.debugUI = null;
         this.showDebugUI = false;
@@ -57,14 +72,91 @@ export class PlayerSystem extends IGameSystem {
     }
 
     createPlayerRenderer(scene) {
-        const geometry = new THREE.SphereGeometry(params.PLAYER_SIZE / 2, 16, 16);
-        const material = new THREE.MeshLambertMaterial({
-            color: new THREE.Color(0.5, 0.5, 0.5), // Start neutral
-            transparent: false
-        });
+        this.textureLoader.load(
+            'public/textures/spritesheet_bordercollie.png',
+            (spritesheet) => {
+                spritesheet.magFilter = THREE.NearestFilter;
+                spritesheet.minFilter = THREE.NearestFilter;
+                spritesheet.wrapS = THREE.ClampToEdgeWrapping;
+                spritesheet.wrapT = THREE.ClampToEdgeWrapping;
+                
+                // Créer les frames individuelles
+                this.createFrameTextures(spritesheet);
+                
+                // Créer le matériau avec la première frame
+                const geometry = new THREE.PlaneGeometry(params.PLAYER_SIZE, params.PLAYER_SIZE);
+                
+                // Modifier les coordonnées UV pour qu'elles occupent toute la géométrie
+                const uvAttribute = geometry.attributes.uv;
+                // Les coordonnées UV par défaut vont de (0,0) à (1,1)
+                // On les laisse telles quelles pour occuper toute la frame
+                for (let i = 0; i < uvAttribute.count; i++) {
+                    const u = uvAttribute.getX(i);
+                    const v = uvAttribute.getY(i);
+                    // Garder les coordonnées UV originales (0,0) à (1,1)
+                    uvAttribute.setXY(i, u, v);
+                }
+                uvAttribute.needsUpdate = true;
+                
+                const material = new THREE.MeshLambertMaterial({
+                    map: this.playerFSM.animations.idle.frameTextures[0],
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                
+                this.renderer = new Renderer(geometry, material);
+                this.renderer.createMesh(scene);
+                this.renderer.mesh.castShadow = false;
+            }
+        );
+    }
+
+    createFrameTextures(baseTexture) {
+        const fsm = this.playerFSM;
         
-        this.renderer = new Renderer(geometry, material);
-        this.renderer.createMesh(scene);
+        // Pour chaque animation
+        for (const animKey in fsm.animations) {
+            const anim = fsm.animations[animKey];
+            anim.frameTextures = [];
+            
+            // Pour chaque frame de cette animation
+            for (let frameIndex = 0; frameIndex < anim.frames; frameIndex++) {
+                // Cloner la texture de base
+                const frameTexture = baseTexture.clone();
+                frameTexture.needsUpdate = true;
+                
+                // Configurer les filtres pour des pixels nets
+                frameTexture.magFilter = THREE.NearestFilter;
+                frameTexture.minFilter = THREE.NearestFilter;
+                frameTexture.wrapS = THREE.ClampToEdgeWrapping;
+                frameTexture.wrapT = THREE.ClampToEdgeWrapping;
+                
+                // Calculer les coordonnées UV pour cette frame spécifique
+                const frameWidth = 1 / 4; // 4 colonnes dans la spritesheet
+                const frameHeight = 1 / 3; // 3 rangées dans la spritesheet
+                
+                // Position de cette frame dans la spritesheet
+                const offsetX = frameIndex * frameWidth / 3;
+                const offsetY = (2 - anim.row) * frameHeight; // Inverser Y car Three.js utilise Y inversé
+                
+                // Configurer la texture pour qu'elle occupe toute la géométrie
+                frameTexture.repeat.set(frameWidth, frameHeight);
+                frameTexture.offset.set(offsetX, offsetY);
+                
+                // Pas de centrage - la texture doit occuper toute la géométrie
+                frameTexture.center.set(0, 0);
+                
+                anim.frameTextures.push(frameTexture);
+                
+                console.log(`🎬 Frame ${animKey}[${frameIndex}]: offset(${offsetX.toFixed(3)}, ${offsetY.toFixed(3)}) repeat(${frameWidth.toFixed(3)}, ${frameHeight.toFixed(3)})`);
+            }
+        }
+        
+        console.log('🎬 Frame textures créées:', {
+            idle: fsm.animations.idle.frameTextures.length,
+            walk: fsm.animations.walk.frameTextures.length,
+            jump: fsm.animations.jump.frameTextures.length
+        });
     }
 
     createDirectionArrow(scene) {
@@ -227,6 +319,9 @@ export class PlayerSystem extends IGameSystem {
         // Handle movement
         this.handleMovement(deltaTime);
         
+        this.updatePlayerState();
+        this.updateAnimation(deltaTime);
+
         // Update renderer
         if (this.renderer) {
             this.renderer.updateTransform(this.transform);
@@ -240,9 +335,10 @@ export class PlayerSystem extends IGameSystem {
         if (!this.planet) return;
         
         // Get movement input
-        const input = this.inputManager.getMovementVector();
+        const input = this.inputManager.getMovementInput();
         
-        if (input.x === 0 && input.y === 0) return;
+        const isMoving = input.forward || input.backward || input.left || input.right;
+        if (!isMoving) return;
         
         // Use quaternion-based movement for constant speed
         this.handleQuaternionMovement(input, deltaTime);
@@ -272,15 +368,18 @@ export class PlayerSystem extends IGameSystem {
         // The player's forward is perpendicular to their right and their up (surfaceNormal).
         // The order of the cross product is important to get "forward" instead of "backward".
         const playerForward = new THREE.Vector3().crossVectors(surfaceNormal, playerRight);
+        
+        const y_mov = (input.forward ? 1 : 0) - (input.backward ? 1 : 0);
+        const x_mov = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
         // 4. Calculate Total Movement Vector
         // Input Y (Z/S -> +1/-1) moves along playerForward.
-        // Input X (Q/D -> +1/-1) moves along playerRight. We must negate X as Q (+1) should move left.
-        const movementDirection = playerForward.clone().multiplyScalar(input.y).add(playerRight.clone().multiplyScalar(-input.x));
+        // Input X (Q/D -> +1/-1) moves along playerRight.
+        const movementDirection = playerForward.clone().multiplyScalar(y_mov).add(playerRight.clone().multiplyScalar(x_mov));
         
         // If there's no movement, no need to do anything else.
         if (movementDirection.lengthSq() === 0) return;
-        
+
         movementDirection.normalize();
 
         if (movementDirection.length() > 0.01) {
@@ -308,84 +407,48 @@ export class PlayerSystem extends IGameSystem {
     
     handleLinearMovement(input, deltaTime) {
         // Calculate movement speed
-        const speed = params.PLAYER_SPEED * deltaTime;
-        const radius = this.planetRadius + params.PLAYER_SIZE / 2;
-        
-        // Get current position and normalize to correct radius
-        const currentPos = this.transform.position.clone();
-        const currentDistance = currentPos.length();
-        
-        // Normalize to correct distance if needed
-        if (Math.abs(currentDistance - radius) > 0.01) {
-            currentPos.normalize().multiplyScalar(radius);
-            this.transform.setPosition(currentPos.x, currentPos.y, currentPos.z);
-        }
-        
-        // Calculate the surface normal at current position
-        const surfaceNormal = currentPos.clone().normalize();
-        
-        // Get camera for movement reference
-        const camera = serviceContainer.resolve('camera');
-        if (!camera) return;
-        
-        // IMPROVED ZQSD MOVEMENT SYSTEM
-        // Get camera's forward direction (where camera is looking)
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        
-        // Project camera direction onto the tangent plane at player position
-        const forwardDirection = cameraDirection.clone();
-        const forwardDotNormal = forwardDirection.dot(surfaceNormal);
-        forwardDirection.addScaledVector(surfaceNormal, -forwardDotNormal);
-        
-        // Normalize and check if projection is valid
-        if (forwardDirection.length() < 0.1) {
-            // Camera is pointing directly at/away from surface, use fallback
-            forwardDirection.set(0, 0, 1); // Fallback direction
-        } else {
-            forwardDirection.normalize();
-        }
-        
-        // Calculate right direction using cross product
-        const rightDirection = new THREE.Vector3().crossVectors(forwardDirection, surfaceNormal);
-        rightDirection.normalize();
-        
-        // Calculate movement vector with clearer ZQSD mapping
+        const speed = params.PLAYER_SPEED;
         const movement = new THREE.Vector3();
         
-        // ZQSD Movement mapping (French AZERTY):
-        // Z = forward (positive Y input)
-        // S = backward (negative Y input) 
-        // Q = left (positive X input)
-        // D = right (negative X input)
+        // Get player orientation relative to the world
+        const forwardDirection = new THREE.Vector3(0, 0, -1);
+        const rightDirection = new THREE.Vector3(1, 0, 0);
         
+        const y_mov = (input.forward ? 1 : 0) - (input.backward ? 1 : 0);
+        const x_mov = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+
         // Forward/Backward movement (Z/S keys)
-        if (input.y !== 0) {
-            movement.addScaledVector(forwardDirection, input.y * speed);
+        if (y_mov !== 0) {
+            movement.addScaledVector(forwardDirection, y_mov * speed);
         }
         
         // Left/Right movement (Q/D keys)  
-        if (input.x !== 0) {
-            movement.addScaledVector(rightDirection, -input.x * speed); // Q=1 goes left (-right), D=-1 goes right (+right)
+        if (x_mov !== 0) {
+            movement.addScaledVector(rightDirection, x_mov * speed);
         }
+        
+        // If no movement, exit early
+        if (movement.length() === 0) return;
         
         // Apply movement
-        let newPosition = currentPos.clone();
-        newPosition.add(movement);
+        this.transform.position.add(movement.clone().multiplyScalar(deltaTime));
         
-        // Store movement direction for arrow (before constraining to sphere)
-        if (movement.length() > 0.01) {
-            this.lastMovementDirection.copy(movement.clone().normalize());
-        }
+        // Project back to the sphere surface
+        this.transform.position.normalize().multiplyScalar(this.planetRadius + params.PLAYER_SIZE / 2);
         
-        // Constrain to sphere surface
-        newPosition.normalize().multiplyScalar(radius);
-        
-        // Update position
-        this.transform.setPosition(newPosition.x, newPosition.y, newPosition.z);
-        
-        // Update player normal
-        this.normal.copy(newPosition.clone().normalize());
+        this.normal.copy(this.transform.position).normalize();
+
+        // Update debug info
+        this.updateDebugUI({
+            input: input.forward ? 'Z' : input.backward ? 'S' : input.left ? 'Q' : 'D',
+            inputVector: movement.normalize().toString(),
+            forward: forwardDirection.normalize().toString(),
+            right: rightDirection.normalize().toString(),
+            movement: movement.length().toFixed(2),
+            position: this.transform.position.toString(),
+            sphericalCoords: this.transform.position.normalize().toString(),
+            input: input.forward ? 'Z' : input.backward ? 'S' : input.left ? 'Q' : 'D'
+        });
     }
     
 
@@ -511,5 +574,56 @@ export class PlayerSystem extends IGameSystem {
         }
         
         console.log('🚶 Player System shutdown');
+    }
+
+    updatePlayerState() {
+        const movementInput = this.inputManager.getMovementInput();
+        const isMoving = movementInput.forward || movementInput.backward || movementInput.left || movementInput.right;
+
+        // a 'isJumping' flag could be added
+        if (isMoving) {
+            if (this.playerFSM.currentState !== 'walk') {
+                this.playerFSM.currentState = 'walk';
+                this.playerFSM.stateChanged = true;
+            }
+        } else {
+            if (this.playerFSM.currentState !== 'idle') {
+                this.playerFSM.currentState = 'idle';
+                this.playerFSM.stateChanged = true;
+            }
+        }
+    }
+
+    updateAnimation(deltaTime) {
+        if (!this.renderer || !this.renderer.material) return;
+
+        const fsm = this.playerFSM;
+        const anim = fsm.animations[fsm.currentState];
+        
+        // Vérifier que les textures de frames sont disponibles
+        if (!anim.frameTextures || anim.frameTextures.length === 0) return;
+
+        // Handle state changes (e.g., idle -> walk)
+        if (fsm.stateChanged) {
+            fsm.currentFrame = 0;
+            fsm.frameTimer = 0;
+            fsm.stateChanged = false;
+            
+            console.log(`🎭 Animation changée vers: ${fsm.currentState}`);
+        }
+
+        // Handle frame progression
+        fsm.frameTimer += deltaTime;
+        if (fsm.frameTimer > anim.speed) {
+            fsm.frameTimer -= anim.speed;
+            fsm.currentFrame = (fsm.currentFrame + 1) % anim.frames;
+        }
+        
+        // Appliquer la texture de la frame courante
+        const currentFrameTexture = anim.frameTextures[fsm.currentFrame];
+        if (currentFrameTexture && this.renderer.material.map !== currentFrameTexture) {
+            this.renderer.material.map = currentFrameTexture;
+            this.renderer.material.needsUpdate = true;
+        }
     }
 } 
