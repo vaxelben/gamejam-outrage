@@ -194,8 +194,8 @@ export class InputManager {
     // Get ZQSD input vector (French AZERTY layout) + Arrow keys
     getMovementVector() {
         return {
-            x: (this.isKeyPressed('q') || this.isKeyPressed('arrowleft') ? 1 : 0) - (this.isKeyPressed('d') || this.isKeyPressed('arrowright') ? 1 : 0),
-            y: (this.isKeyPressed('z') || this.isKeyPressed('arrowup') ? 1 : 0) - (this.isKeyPressed('s') || this.isKeyPressed('arrowdown') ? 1 : 0)
+            x: (this.isKeyPressed('q') || this.isKeyPressed('a') || this.isKeyPressed('arrowleft') ? 1 : 0) - (this.isKeyPressed('d') || this.isKeyPressed('arrowright') ? 1 : 0),
+            y: (this.isKeyPressed('z') || this.isKeyPressed('w') || this.isKeyPressed('arrowup') ? 1 : 0) - (this.isKeyPressed('s') || this.isKeyPressed('arrowdown') ? 1 : 0)
         };
     }
 
