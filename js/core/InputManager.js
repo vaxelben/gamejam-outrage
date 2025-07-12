@@ -182,20 +182,20 @@ export class InputManager {
     // Movement input helpers
     getMovementInput() {
         return {
-            forward: this.isKeyPressed('z') || this.isKeyPressed('w'),
-            backward: this.isKeyPressed('s'),
-            left: this.isKeyPressed('q') || this.isKeyPressed('a'),
-            right: this.isKeyPressed('d'),
+            forward: this.isKeyPressed('z') || this.isKeyPressed('w') || this.isKeyPressed('arrowup'),
+            backward: this.isKeyPressed('s') || this.isKeyPressed('arrowdown'),
+            left: this.isKeyPressed('q') || this.isKeyPressed('a') || this.isKeyPressed('arrowleft'),
+            right: this.isKeyPressed('d') || this.isKeyPressed('arrowright'),
             up: this.isKeyPressed(' '), // spacebar
             down: this.isKeyPressed('shift')
         };
     }
 
-    // Get ZQSD input vector (French AZERTY layout)
+    // Get ZQSD input vector (French AZERTY layout) + Arrow keys
     getMovementVector() {
         return {
-            x: (this.isKeyPressed('q') ? 1 : 0) - (this.isKeyPressed('d') ? 1 : 0),
-            y: (this.isKeyPressed('z') ? 1 : 0) - (this.isKeyPressed('s') ? 1 : 0)
+            x: (this.isKeyPressed('q') || this.isKeyPressed('arrowleft') ? 1 : 0) - (this.isKeyPressed('d') || this.isKeyPressed('arrowright') ? 1 : 0),
+            y: (this.isKeyPressed('z') || this.isKeyPressed('arrowup') ? 1 : 0) - (this.isKeyPressed('s') || this.isKeyPressed('arrowdown') ? 1 : 0)
         };
     }
 
@@ -203,6 +203,7 @@ export class InputManager {
     isGameKey(key) {
         const gameKeys = [
             'z', 'q', 's', 'd', 'w', 'a', // Movement
+            'arrowup', 'arrowdown', 'arrowleft', 'arrowright', // Arrow keys
             '1', '2', '3', '4', '5', '6', '7', // Masks
             'escape', ' ', 'shift', 'control', 'alt' // Special keys
         ];
