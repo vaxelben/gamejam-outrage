@@ -3,9 +3,9 @@ export const params = {
     // Planet settings
     PLANET_DIAMETER: 60,
     PLANET_SURFACE_OFFSET: 3, // Distance above surface
-    PLANET_INNER_SPHERE_SCALE: 0.95, // Scale factor for inner sphere (0.95 = 95% of outer sphere)
-    PLANET_OUTER_OPACITY: 0.9999999, // Outer sphere opacity (transparent to see inner sphere)
-    PLANET_INNER_OPACITY: 0.9999, // Inner sphere opacity (more opaque)
+    PLANET_INNER_SPHERE_SCALE: 0.97, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
+    PLANET_OUTER_OPACITY: 0.7, // Outer sphere opacity (more transparent to see inner sphere)
+    PLANET_INNER_OPACITY: 0.95, // Inner sphere opacity (more opaque to show details)
     
     // Player movement
     PLAYER_SPEED: 20,
@@ -121,7 +121,7 @@ export const params = {
     PLAYER_REPULSION_FORCE: 10.0,
     
     // Visual settings
-    PLANET_TEXTURE_SCALE: 1.0,       // Scale of planet texture
+    PLANET_TEXTURE_SCALE: 0.5,       // Scale of planet texture (smaller = more detail)
     LIGHTING_INTENSITY: 1.0,         // Ambient lighting intensity
     SHADOW_QUALITY: 1.0,             // Shadow map resolution multiplier
     

@@ -71,13 +71,13 @@ export class SceneManager {
     }
 
     createLights() {
-        // Ambient light
-        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.9);
+        // Ambient light - reduced intensity to let other lights show more effect
+        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.8);
         this.scene.add(ambientLight);
 
-        // Directional light with shadows
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(20, 20, 5);
+        // Directional light with shadows - reduced intensity
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        directionalLight.position.set(0, 20, 25);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
@@ -88,6 +88,16 @@ export class SceneManager {
         directionalLight.shadow.camera.top = 50;
         directionalLight.shadow.camera.bottom = -50;
         this.scene.add(directionalLight);
+
+        // Camera-following spotlight (always above camera, pointing to center)
+        this.cameraLight = new THREE.SpotLight(0xffffff, 1.5, 150, Math.PI / 3, 0.2, 1);
+        this.cameraLight.position.set(0, 0, 0); // Will be updated in updateCamera
+        this.cameraLight.target.position.set(0, 0, 0); // Always point to center
+        this.cameraLight.castShadow = false; // Disable shadows for performance
+        this.scene.add(this.cameraLight);
+        this.scene.add(this.cameraLight.target);
+        
+        console.log('💡 Camera-following spotlight created with enhanced parameters');
     }
 
     createPlanet() {
@@ -103,13 +113,14 @@ export class SceneManager {
         
         // Configure outer texture
         outerTexture.wrapS = THREE.RepeatWrapping;
-        outerTexture.wrapT = THREE.ClampToEdgeWrapping;
+        outerTexture.wrapT = THREE.RepeatWrapping;
+        outerTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
         
         const outerMaterial = new THREE.MeshStandardMaterial({ 
             map: outerTexture,
-            transparent: params.PLANET_OUTER_OPACITY < 1.0,
+            transparent: true,
             opacity: params.PLANET_OUTER_OPACITY,
-            roughness: 0.3,
+            roughness: 0.9,
             metalness: 0.1,
             side: THREE.DoubleSide,
             // Force rendering order to ensure inner sphere is visible
@@ -123,20 +134,41 @@ export class SceneManager {
         this.planet.renderOrder = 1;
         this.scene.add(this.planet);
         
-        // Create inner sphere
-        const innerGeometry = new THREE.SphereGeometry(innerRadius, 64, 64);
-        const innerTexture = textureLoader.load('textures/bordel_int.png');
+        // Create inner sphere with higher geometry resolution for better displacement
+        const innerGeometry = new THREE.SphereGeometry(innerRadius, 128, 128);
+        const innerTexture = textureLoader.load('textures/planet_int_color.png');
+        const innerNormalTexture = textureLoader.load('textures/planet_int_normal.png');
+        const innerHeightTexture = textureLoader.load('textures/planet_int_height.png');
         
         // Configure inner texture
         innerTexture.wrapS = THREE.RepeatWrapping;
-        innerTexture.wrapT = THREE.ClampToEdgeWrapping;
+        innerTexture.wrapT = THREE.RepeatWrapping;
+        innerTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
+        
+        // Configure inner normal texture
+        innerNormalTexture.wrapS = THREE.RepeatWrapping;
+        innerNormalTexture.wrapT = THREE.RepeatWrapping;
+        innerNormalTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
+        
+        // Configure inner height texture
+        innerHeightTexture.wrapS = THREE.RepeatWrapping;
+        innerHeightTexture.wrapT = THREE.RepeatWrapping;
+        innerHeightTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
         
         const innerMaterial = new THREE.MeshStandardMaterial({ 
             map: innerTexture,
+            normalMap: innerNormalTexture,
+            normalScale: new THREE.Vector2(2.0, 2.0), // Increase normal map intensity
+            displacementMap: innerHeightTexture,
+            displacementScale: 0.5, // Increased displacement scale for more visible relief
+            displacementBias: 0.0, // Bias for displacement
             transparent: true,
             opacity: params.PLANET_INNER_OPACITY,
-            roughness: 0.9,
-            metalness: 0.0,
+            roughness: 0.1, // Very low roughness for high reflectivity
+            metalness: 0.9, // Increased metalness for reflective effect
+            clearcoat: 0.8, // Add clearcoat for extra shine
+            clearcoatRoughness: 0.05, // Very smooth clearcoat
+            envMapIntensity: 1.5, // Increase environment map reflection
             side: THREE.DoubleSide,
             // Ensure inner sphere renders after outer sphere
             depthTest: true,
@@ -157,8 +189,23 @@ export class SceneManager {
             innerRadius: innerRadius,
             outerOpacity: params.PLANET_OUTER_OPACITY,
             innerOpacity: params.PLANET_INNER_OPACITY,
+            textureScale: params.PLANET_TEXTURE_SCALE,
             outerTexture: 'textures/bordel_ext.png',
-            innerTexture: 'textures/bordel_int.png',
+            innerTextures: {
+                color: 'textures/planet_int_color.png',
+                normal: 'textures/planet_int_normal.png',
+                height: 'textures/planet_int_height.png'
+            },
+            innerMaterial: {
+                roughness: 0.1,
+                metalness: 0.9,
+                clearcoat: 0.8,
+                clearcoatRoughness: 0.05,
+                envMapIntensity: 1.5
+            },
+            displacementScale: 0.5,
+            normalScale: '2.0x2.0',
+            geometryResolution: '128x128',
             inScene: this.scene.children.includes(this.planet) && this.scene.children.includes(this.innerPlanet),
             innerVisible: this.innerPlanet.visible,
             outerVisible: this.planet.visible
@@ -411,6 +458,9 @@ export class SceneManager {
             // Robust camera orientation using quaternion-based approach
             // This avoids singularities and discontinuities
             this.updateCameraOrientation(playerPosition);
+            
+            // Update camera-following light position
+            this.updateCameraLight(playerPosition);
         }
     }
 
@@ -468,6 +518,35 @@ export class SceneManager {
         
         // Store for next frame to maintain continuity
         this.lastCameraUp.copy(cameraUp);
+    }
+
+    // Update camera-following spotlight position
+    updateCameraLight(playerPosition) {
+        if (this.cameraLight) {
+            // Calculate player normal vector
+            const playerNormal = playerPosition.clone().normalize();
+            
+            // Get camera up vector for positioning light above camera
+            const cameraUp = this.camera.up.clone();
+            
+            // Position spotlight above camera with some offset
+            const lightOffset = cameraUp.multiplyScalar(25); // 15 units above camera for better spotlight coverage
+            const lightPosition = this.camera.position.clone().add(lightOffset);
+            
+            this.cameraLight.position.copy(lightPosition);
+            
+            // Ensure spotlight target is always at scene center
+            this.cameraLight.target.position.set(0, 0, 0);
+            
+            // Optionally adjust light intensity based on distance to player
+            const distanceToPlayer = this.camera.position.distanceTo(playerPosition);
+            const intensityScale = Math.max(0.8, Math.min(2.0, 30 / distanceToPlayer));
+            this.cameraLight.intensity = 1.5 * intensityScale;
+            
+            // Adjust spotlight angle based on distance for better coverage
+            const angleScale = Math.max(0.7, Math.min(1.5, distanceToPlayer / 20));
+            this.cameraLight.angle = (Math.PI / 3) * angleScale;
+        }
     }
 
     // Render the scene and HUD
@@ -596,6 +675,107 @@ export class SceneManager {
         }
     }
 
+    // Debug method for texture scale testing
+    setPlanetTextureScale(scale = 1.0) {
+        if (this.planet && this.planet.material && this.planet.material.map) {
+            this.planet.material.map.repeat.set(scale, scale);
+            console.log(`🌍 Outer sphere texture scale set to: ${scale}`);
+        }
+        
+        if (this.innerPlanet && this.innerPlanet.material && this.innerPlanet.material.map) {
+            this.innerPlanet.material.map.repeat.set(scale, scale);
+            console.log(`🌍 Inner sphere texture scale set to: ${scale}`);
+        }
+    }
+
+    // Debug method for adjusting inner sphere material properties
+    setInnerSphereReflectivity(roughness = 0.1, metalness = 0.6, clearcoat = 0.8) {
+        if (this.innerPlanet && this.innerPlanet.material) {
+            const material = this.innerPlanet.material;
+            material.roughness = roughness;
+            material.metalness = metalness;
+            material.clearcoat = clearcoat;
+            material.needsUpdate = true;
+            console.log(`✨ Inner sphere reflectivity updated:`, {
+                roughness: roughness,
+                metalness: metalness,
+                clearcoat: clearcoat
+            });
+        }
+    }
+
+    // Debug method for displacement scale testing
+    setDisplacementScale(scale = 0.5) {
+        if (this.innerPlanet && this.innerPlanet.material) {
+            this.innerPlanet.material.displacementScale = scale;
+            this.innerPlanet.material.needsUpdate = true;
+            console.log(`🌍 Inner sphere displacement scale set to: ${scale}`);
+        }
+    }
+
+    // Debug method for adjusting camera spotlight
+    setCameraSpotlightParams(intensity = 1.5, distance = 150, angle = Math.PI / 3, penumbra = 0.2) {
+        if (this.cameraLight) {
+            this.cameraLight.intensity = intensity;
+            this.cameraLight.distance = distance;
+            this.cameraLight.angle = angle;
+            this.cameraLight.penumbra = penumbra;
+            console.log(`💡 Camera spotlight updated:`, {
+                intensity: intensity,
+                distance: distance,
+                angle: angle,
+                penumbra: penumbra,
+                position: this.cameraLight.position,
+                target: this.cameraLight.target.position
+            });
+        }
+    }
+
+    // Debug method for testing spotlight colors
+    setCameraSpotlightColor(color = 0xffffff) {
+        if (this.cameraLight) {
+            this.cameraLight.color.setHex(color);
+            console.log(`💡 Camera spotlight color set to: ${color.toString(16)}`);
+        }
+    }
+
+    // Test different spotlight colors for enhanced visual effect
+    testSpotlightColors() {
+        console.log('🎨 Testing spotlight colors...');
+        const colors = [
+            { name: 'White', color: 0xffffff },
+            { name: 'Warm White', color: 0xfff8dc },
+            { name: 'Cool Blue', color: 0xb3d9ff },
+            { name: 'Golden', color: 0xffd700 },
+            { name: 'Cyan', color: 0x00ffff },
+            { name: 'Magenta', color: 0xff00ff }
+        ];
+        
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < colors.length) {
+                const colorData = colors[currentIndex];
+                this.setCameraSpotlightColor(colorData.color);
+                console.log(`🎨 Testing ${colorData.name} spotlight`);
+                currentIndex++;
+                setTimeout(testNext, 2000); // Change color every 2 seconds
+            } else {
+                console.log('🎨 Spotlight color test completed');
+                this.setCameraSpotlightColor(0xffffff); // Return to white
+            }
+        };
+        
+        testNext();
+    }
+
+    // Update planet texture scale and persist to params
+    updatePlanetTextureScale(scale = 1.0) {
+        params.PLANET_TEXTURE_SCALE = scale;
+        this.setPlanetTextureScale(scale);
+        console.log(`🌍 Planet texture scale updated to: ${scale} (persisted to params)`);
+    }
+
     toggleOuterSphereVisibility() {
         if (this.planet) {
             this.planet.visible = !this.planet.visible;
@@ -621,6 +801,9 @@ export class SceneManager {
 
     // Get planet debug info
     getPlanetDebugInfo() {
+        const outerTextureScale = this.planet?.material?.map?.repeat || { x: 'N/A', y: 'N/A' };
+        const innerTextureScale = this.innerPlanet?.material?.map?.repeat || { x: 'N/A', y: 'N/A' };
+        
         return {
             outerRadius: this.planetRadius,
             innerRadius: this.getInnerPlanetRadius(),
@@ -629,7 +812,10 @@ export class SceneManager {
             outerVisible: this.planet?.visible || false,
             innerVisible: this.innerPlanet?.visible || false,
             outerRenderOrder: this.planet?.renderOrder || 'N/A',
-            innerRenderOrder: this.innerPlanet?.renderOrder || 'N/A'
+            innerRenderOrder: this.innerPlanet?.renderOrder || 'N/A',
+            textureScale: params.PLANET_TEXTURE_SCALE,
+            outerTextureScale: `${outerTextureScale.x} x ${outerTextureScale.y}`,
+            innerTextureScale: `${innerTextureScale.x} x ${innerTextureScale.y}`
         };
     }
 
@@ -652,6 +838,13 @@ export class SceneManager {
         if (this.hudLabels) {
             document.body.removeChild(this.hudLabels);
             this.hudLabels = null;
+        }
+        
+        // Clean up camera spotlight
+        if (this.cameraLight) {
+            this.scene.remove(this.cameraLight);
+            this.scene.remove(this.cameraLight.target);
+            this.cameraLight = null;
         }
         
         if (this.scene) {

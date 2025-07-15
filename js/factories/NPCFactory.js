@@ -118,8 +118,11 @@ function createBasicNPC(config) {
 
     // Create renderer immediately
     if (scene) {
-        const geometry = new THREE.PlaneGeometry((params.NPC_SIZE || 0.5), (params.NPC_SIZE || 0.5));
         const texture = textureLoader.load(getTextureForMask(maskType));
+        
+        // Create initial square geometry (will be updated when texture loads)
+        const geometry = new THREE.PlaneGeometry((params.NPC_SIZE || 0.5), (params.NPC_SIZE || 0.5));
+        
         const material = new THREE.MeshBasicMaterial({ 
             map: texture,
             transparent: true,
@@ -129,6 +132,11 @@ function createBasicNPC(config) {
         
         npc.renderer = new Renderer(geometry, material);
         npc.renderer.createMesh(scene);
+        
+        // Update geometry when texture loads to preserve aspect ratio
+        texture.onLoad = () => {
+            updateNPCGeometry(npc);
+        };
         
         // Position the mesh
         npc.renderer.updateTransform(npc.transform);
@@ -196,6 +204,45 @@ function createFollowerNPC(config) {
     };
     
     return npc;
+}
+
+// Helper function to update NPC geometry to preserve texture aspect ratio
+function updateNPCGeometry(npc) {
+    if (!npc.renderer || !npc.renderer.mesh) return;
+    
+    const texture = npc.renderer.mesh.material.map;
+    if (!texture || !texture.image) return;
+    
+    // Get texture dimensions
+    const textureWidth = texture.image.width;
+    const textureHeight = texture.image.height;
+    
+    if (textureWidth === 0 || textureHeight === 0) return;
+    
+    // Calculate aspect ratio
+    const aspectRatio = textureWidth / textureHeight;
+    
+    // Calculate new dimensions while maintaining the base size
+    const baseSize = params.NPC_SIZE || 0.5;
+    let width, height;
+    if (aspectRatio > 1) {
+        // Wider than tall
+        width = baseSize;
+        height = baseSize / aspectRatio;
+    } else {
+        // Taller than wide or square
+        width = baseSize * aspectRatio;
+        height = baseSize;
+    }
+    
+    // Create new geometry with correct aspect ratio
+    const newGeometry = new THREE.PlaneGeometry(width, height);
+    
+    // Update the mesh geometry
+    npc.renderer.mesh.geometry.dispose(); // Clean up old geometry
+    npc.renderer.mesh.geometry = newGeometry;
+    
+    console.log(`📐 NPC geometry updated to preserve texture ratio (${textureWidth}x${textureHeight}, aspect: ${aspectRatio.toFixed(2)})`);
 }
 
 // Color helper

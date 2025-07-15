@@ -4,7 +4,6 @@ import { Transform } from '../components/Transform.js';
 import { Renderer } from '../components/Renderer.js';
 import { params } from '../params.js';
 import { serviceContainer } from '../core/ServiceContainer.js';
-import { getTextureForMask } from '../factories/NPCFactory.js';
 
 export class PlayerSystem extends IGameSystem {
     constructor() {
@@ -60,11 +59,68 @@ export class PlayerSystem extends IGameSystem {
         console.log(`📍 Player position: ${this.transform.position.x}, ${this.transform.position.y}, ${this.transform.position.z}`);
     }
 
-    createPlayerRenderer(scene) {
-        const geometry = new THREE.PlaneGeometry(params.PLAYER_SIZE, params.PLAYER_SIZE);
+    // Texture helper - maps mask types to corresponding Joshua textures
+    getJoshuaTextureForMask(maskId) {
+        const textures = {
+            1: 'textures/sprites/joshua_conservative.png',    // Conservatives
+            2: 'textures/sprites/joshua_sjw.png',            // Social Justice
+            3: 'textures/sprites/joshua_libertarian.png',    // Libertarians
+            4: 'textures/sprites/joshua_nationalist.png',    // Nationalists
+            5: 'textures/sprites/joshua_culture.png',        // Culture
+            6: 'textures/sprites/joshua_religious.png',      // Religious
+            7: 'textures/sprites/joshua_antisystem.png'      // Antisystem
+        };
+        return textures[maskId] || 'textures/sprites/joshua_neutre.png'; // Fallback to neutral
+    }
+
+    updatePlayerGeometry() {
+        if (!this.renderer || !this.renderer.mesh) return;
         
+        const texture = this.renderer.mesh.material.map;
+        if (!texture || !texture.image) return;
+        
+        // Get texture dimensions
+        const textureWidth = texture.image.width;
+        const textureHeight = texture.image.height;
+        
+        if (textureWidth === 0 || textureHeight === 0) return;
+        
+        // Calculate aspect ratio
+        const aspectRatio = textureWidth / textureHeight;
+        
+        // Calculate new dimensions while maintaining the base size
+        let width, height;
+        if (aspectRatio > 1) {
+            // Wider than tall
+            width = params.PLAYER_SIZE;
+            height = params.PLAYER_SIZE / aspectRatio;
+        } else {
+            // Taller than wide or square
+            width = params.PLAYER_SIZE * aspectRatio;
+            height = params.PLAYER_SIZE;
+        }
+        
+        // Create new geometry with correct aspect ratio
+        const newGeometry = new THREE.PlaneGeometry(width, height);
+        
+        // Update the mesh geometry
+        this.renderer.mesh.geometry.dispose(); // Clean up old geometry
+        this.renderer.mesh.geometry = newGeometry;
+        
+        console.log(`📐 Player geometry updated to preserve texture ratio (${textureWidth}x${textureHeight}, aspect: ${aspectRatio.toFixed(2)})`);
+    }
+
+    createPlayerRenderer(scene) {
         // Load player texture (starts with neutral texture)
-        const texture = this.textureLoader.load('textures/sprites/group_neutre.png');
+        const texture = this.textureLoader.load('textures/sprites/joshua_neutre.png');
+        
+        // Wait for texture to load to get its dimensions
+        texture.onLoad = () => {
+            this.updatePlayerGeometry();
+        };
+        
+        // Create initial square geometry (will be updated when texture loads)
+        const geometry = new THREE.PlaneGeometry(params.PLAYER_SIZE, params.PLAYER_SIZE);
         
         const material = new THREE.MeshBasicMaterial({
             map: texture,
@@ -92,12 +148,15 @@ export class PlayerSystem extends IGameSystem {
         
         this.directionArrow = new THREE.ArrowHelper(direction, origin, length, color, 0.2, 0.1);
         
+        // Hide the arrow by default
+        this.directionArrow.visible = false;
+        
         // Position the arrow above the player
         this.updateDirectionArrow();
         
         scene.add(this.directionArrow);
         
-        console.log('🏹 Direction arrow created and added to scene');
+        console.log('🏹 Direction arrow created and added to scene (hidden by default)');
     }
 
     updatePlayerOrientation() {
@@ -120,6 +179,48 @@ export class PlayerSystem extends IGameSystem {
         
         // Make the player plane face the camera with correct up orientation
         this.renderer.mesh.lookAt(camera.position);
+        
+        // Add tilt based on movement direction
+        if (this.lastMovementDirection && this.lastMovementDirection.length() > 0.01) {
+            const tiltAmount = 0.5; // Adjust this value to control tilt intensity (radians)
+            
+            // Get player's surface normal
+            const surfaceNormal = this.normal.clone();
+            
+            // Project movement direction onto the tangent plane
+            const movementDirection = this.lastMovementDirection.clone();
+            const movementDotNormal = movementDirection.dot(surfaceNormal);
+            movementDirection.addScaledVector(surfaceNormal, -movementDotNormal);
+            
+            if (movementDirection.length() > 0.01) {
+                movementDirection.normalize();
+                
+                // Get camera's forward direction (Z axis) to use as tilt axis
+                // This ensures rotation happens in the camera's XY plane
+                const cameraForward = new THREE.Vector3();
+                camera.getWorldDirection(cameraForward);
+                
+                // Use camera's forward direction as the tilt axis
+                const tiltAxis = cameraForward.clone();
+                
+                // Calculate tilt direction based on movement in camera's XY plane
+                // Get camera's right and up vectors
+                const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+                const cameraUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+                
+                // Project movement direction onto camera's XY plane
+                const movementInCameraSpace = new THREE.Vector3();
+                movementInCameraSpace.x = movementDirection.dot(cameraRight);
+                movementInCameraSpace.y = movementDirection.dot(cameraUp);
+                
+                // Calculate tilt angle based on horizontal movement (X component)
+                const tiltAngle = -movementInCameraSpace.x * tiltAmount; // Negative for correct direction
+                
+                // Apply tilt rotation around camera's Z axis
+                const tiltQuaternion = new THREE.Quaternion().setFromAxisAngle(tiltAxis, tiltAngle);
+                this.renderer.mesh.quaternion.multiply(tiltQuaternion);
+            }
+        }
     }
 
     updateDirectionArrow() {
@@ -454,15 +555,21 @@ export class PlayerSystem extends IGameSystem {
     updatePlayerAppearance() {
         if (!this.renderer || !this.renderer.mesh) return;
         
-        // Get the appropriate texture for the current mask
-        const texturePath = getTextureForMask(this.currentMask);
+        // Get the appropriate Joshua texture for the current mask
+        const texturePath = this.getJoshuaTextureForMask(this.currentMask);
         
         // Load and apply the new texture
         const texture = this.textureLoader.load(texturePath);
+        
+        // Update geometry when texture loads
+        texture.onLoad = () => {
+            this.updatePlayerGeometry();
+        };
+        
         this.renderer.mesh.material.map = texture;
         this.renderer.mesh.material.needsUpdate = true;
         
-        console.log(`🎭 Player appearance updated with texture: ${texturePath}`);
+        console.log(`🎭 Player appearance updated with Joshua texture: ${texturePath}`);
     }
 
 
