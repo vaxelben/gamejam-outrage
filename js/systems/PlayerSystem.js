@@ -300,7 +300,68 @@ export class PlayerSystem extends IGameSystem {
             <strong>ESC</strong> - Return to neutral
         `;
         
-        document.body.appendChild(instructions);
+        // document.body.appendChild(instructions);
+        
+        // Create touch controls overlay for mobile
+        if (this.inputManager.isMobileDevice()) {
+            this.createTouchControlsOverlay();
+        }
+    }
+
+    createTouchControlsOverlay() {
+        const touchOverlay = document.createElement('div');
+        touchOverlay.id = 'touch-controls-overlay';
+        touchOverlay.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 1001;
+            pointer-events: none;
+        `;
+        touchOverlay.innerHTML = '📱';
+        
+        document.body.appendChild(touchOverlay);
+        
+        // Add visual feedback for touch controls
+        const touchIndicator = document.createElement('div');
+        touchIndicator.style.cssText = `
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            color: white;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px;
+            border-radius: 5px;
+            z-index: 1001;
+            display: none;
+        `;
+        touchIndicator.textContent = 'Touch & drag to move';
+        
+        document.body.appendChild(touchIndicator);
+        
+        // Show/hide touch indicator based on touch activity
+        const updateTouchIndicator = () => {
+            if (this.inputManager.isTouchActive()) {
+                touchIndicator.style.display = 'block';
+                const movement = this.inputManager.getTouchMovement();
+                touchIndicator.textContent = `Touch: x=${movement.x.toFixed(2)}, y=${movement.y.toFixed(2)}`;
+            } else {
+                touchIndicator.style.display = 'none';
+            }
+        };
+        
+        // Update indicator periodically
+        setInterval(updateTouchIndicator, 100);
     }
 
     updateDebugUI(debugInfo) {
@@ -380,13 +441,37 @@ export class PlayerSystem extends IGameSystem {
     handleMovement(deltaTime) {
         if (!this.planet) return;
         
-        // Get movement input
+        // Get movement input (includes touch controls)
         const input = this.inputManager.getMovementVector();
         
         if (input.x === 0 && input.y === 0) return;
         
+        // Debug touch controls on mobile
+        if (this.inputManager.isMobileDevice() && this.inputManager.isTouchActive()) {
+            const touchMovement = this.inputManager.getTouchMovement();
+            console.log(`📱 Touch movement: x=${touchMovement.x.toFixed(3)}, y=${touchMovement.y.toFixed(3)}, input: x=${input.x.toFixed(3)}, y=${input.y.toFixed(3)}`);
+        }
+        
         // Use quaternion-based movement for constant speed
         this.handleQuaternionMovement(input, deltaTime);
+    }
+
+    // Handle touch-specific movement with enhanced feedback
+    handleTouchMovement(deltaTime) {
+        if (!this.inputManager.isMobileDevice() || !this.inputManager.isTouchActive()) {
+            return;
+        }
+
+        const touchMovement = this.inputManager.getTouchMovement();
+        const input = {
+            x: Math.max(-1, Math.min(1, touchMovement.x)),
+            y: Math.max(-1, Math.min(1, touchMovement.y))
+        };
+
+        // Only move if touch input is significant enough
+        if (Math.abs(input.x) > 0.1 || Math.abs(input.y) > 0.1) {
+            this.handleQuaternionMovement(input, deltaTime);
+        }
     }
     
     handleQuaternionMovement(input, deltaTime) {

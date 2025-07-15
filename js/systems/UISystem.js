@@ -250,20 +250,25 @@ export class UISystem extends IGameSystem {
 
     createMaskSelector() {
         this.elements.maskSelector = document.createElement('div');
+        
+        // Check if mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+        
         this.elements.maskSelector.style.cssText = `
             position: absolute;
-            top: 20px;
+            top: ${isMobile ? '10px' : '20px'};
             left: 50%;
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.1);
             color: white;
-            padding: 15px;
+            padding: ${isMobile ? '5px' : '15px'};
             border-radius: 10px;
             display: flex;
-            gap: 8px;
+            gap: ${isMobile ? '2px' : '8px'};
             pointer-events: auto;
             z-index: 1001;
-            max-width: 900px;
+            max-width: ${isMobile ? '100vw' : '900px'};
+            width: ${isMobile ? 'calc(100vw - 10px)' : 'auto'};
             flex-wrap: wrap;
             justify-content: center;
         `;
@@ -297,12 +302,18 @@ export class UISystem extends IGameSystem {
 
     createMaskButton(key, name, color) {
         const button = document.createElement('div');
+        
+        // Check if mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+        
         button.style.cssText = `
-            width: 80px;
-            height: 60px;
+            width: ${isMobile ? 'calc((100vw - 70px) / 8)' : '80px'};
+            height: ${isMobile ? '38px' : '60px'};
+            min-width: ${isMobile ? '35px' : '80px'};
+            max-width: ${isMobile ? '55px' : 'none'};
             background: ${color || 'rgba(80, 80, 80, 0.7)'};
-            border: 2px solid #fff;
-            border-radius: 10px;
+            border: ${isMobile ? '1px solid #fff' : '2px solid #fff'};
+            border-radius: ${isMobile ? '6px' : '10px'};
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -324,10 +335,10 @@ export class UISystem extends IGameSystem {
                 const spriteImg = document.createElement('img');
                 spriteImg.src = getTextureForMask(maskIndex + 1);
                 spriteImg.style.cssText = `
-                    width: 30px;
-                    height: 30px;
+                    width: ${isMobile ? '24px' : '30px'};
+                    height: ${isMobile ? '24px' : '30px'};
                     object-fit: contain;
-                    margin-bottom: 3px;
+                    margin-bottom: ${isMobile ? '2px' : '3px'};
                 `;
                 button.appendChild(spriteImg);
             }
@@ -339,11 +350,13 @@ export class UISystem extends IGameSystem {
             font-weight: bold;
             color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-            font-size: 9px;
+            font-size: ${isMobile ? '7px' : '9px'};
             text-align: center;
-            line-height: 1.1;
-            max-width: 75px;
+            line-height: 1.0;
+            max-width: ${isMobile ? '95%' : '75px'};
             overflow: hidden;
+            word-wrap: break-word;
+            padding: ${isMobile ? '0 1px' : '0'};
         `;
         
         const tooltip = document.createElement('div');

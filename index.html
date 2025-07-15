@@ -170,6 +170,100 @@
             transform: translateY(-50%) rotate(-90deg);
             transform-origin: center;
         }
+        
+        /* Mobile adaptations */
+        @media screen and (max-width: 768px) {
+            /* Force landscape orientation */
+            @media screen and (orientation: portrait) {
+                html {
+                    transform: rotate(90deg);
+                    transform-origin: center;
+                    width: 100vh;
+                    height: 100vw;
+                    overflow: hidden;
+                }
+                
+                body {
+                    width: 100vh;
+                    height: 100vw;
+                }
+                
+                #renderCanvas {
+                    width: 100vh;
+                    height: 100vw;
+                }
+            }
+            
+            /* Adapt mask selector for mobile */
+            #mask-selector {
+                width: calc(100vw - 40px);
+                height: 50px;
+                top: 10px;
+                gap: 2px;
+                padding: 0 5px;
+            }
+            
+            .mask-button {
+                width: calc((100vw - 80px) / 8);
+                height: 35px;
+                font-size: 8px;
+                min-width: 35px;
+            }
+            
+            /* Adjust energy and outrage bars for mobile */
+            #energy-bar {
+                width: 25px;
+                height: 200px;
+                left: 10px;
+            }
+            
+            #outrage-bar {
+                width: 25px;
+                height: 200px;
+                right: 10px;
+            }
+            
+            #energy-label {
+                left: -60px;
+                font-size: 10px;
+            }
+            
+            #outrage-label {
+                right: -60px;
+                font-size: 10px;
+            }
+            
+            /* Adjust bottom bar for mobile */
+            #bottom-bar {
+                height: 50px;
+                font-size: 14px;
+                padding: 0 10px;
+            }
+            
+            /* Hide instructions on mobile */
+            #instructions {
+                display: none;
+            }
+        }
+        
+        /* Touch controls overlay */
+        #touch-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            display: none;
+        }
+        
+        @media screen and (max-width: 768px) {
+            #touch-controls {
+                display: block;
+                pointer-events: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -178,6 +272,9 @@
         <div>ZQSD: Move | Mouse: Camera | 1-7: Ideological Masks | ESC: Neutral</div>
         <div>Blend in with crowds using the right ideology!</div>
     </div> -->
+    
+    <!-- Touch controls overlay for mobile -->
+    <div id="touch-controls"></div>
     
     <!-- UI Container -->
     

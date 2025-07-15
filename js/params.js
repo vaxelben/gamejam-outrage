@@ -136,6 +136,10 @@ export const params = {
     LOD_DISTANCE: 50,                // Distance for level of detail switching
     PHYSICS_STEP_SIZE: 0.016,        // Physics simulation step size
     MAX_DELTA_TIME: 1/60,            // Maximum deltaTime to prevent physics issues (16.67ms)
+    
+    // Mobile/Touch settings
+    TOUCH_SENSITIVITY: 0.003,        // Sensitivity for touch movement
+    TOUCH_DEAD_ZONE: 0.1,           // Minimum touch movement to register
 };
 
 // Tweakpane integration for live parameter tuning

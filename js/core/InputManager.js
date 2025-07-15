@@ -6,6 +6,14 @@ export class InputManager {
         this.mouseButtons = new Map();
         this.inputListeners = new Map();
         this.canvas = null;
+        
+        // Touch controls
+        this.touchActive = false;
+        this.touchOrigin = { x: 0, y: 0 };
+        this.touchCurrent = { x: 0, y: 0 };
+        this.touchMovement = { x: 0, y: 0 };
+        this.touchSensitivity = 0.003; // Will be set from params after import
+        this.isMobile = this.detectMobile();
     }
 
     async initialize() {
@@ -17,6 +25,12 @@ export class InputManager {
 
         this.setupKeyboardListeners();
         this.setupMouseListeners();
+        
+        // Setup touch controls for mobile
+        if (this.isMobile) {
+            this.setupTouchListeners();
+            console.log('📱 Touch controls enabled for mobile');
+        }
 
         console.log('🎮 Input Manager initialized');
     }
@@ -120,6 +134,95 @@ export class InputManager {
         }, { passive: true });
     }
 
+    // Detect if device is mobile
+    detectMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0) ||
+               window.innerWidth <= 768;
+    }
+
+    // Setup touch listeners for mobile controls
+    setupTouchListeners() {
+        // Touch start
+        this.canvas.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            
+            if (event.touches.length === 1) {
+                const touch = event.touches[0];
+                this.touchOrigin.x = touch.clientX;
+                this.touchOrigin.y = touch.clientY;
+                this.touchCurrent.x = touch.clientX;
+                this.touchCurrent.y = touch.clientY;
+                this.touchActive = true;
+                
+                this.notifyListeners('touchstart', {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    originalEvent: event
+                });
+            }
+        }, { passive: false });
+
+        // Touch move
+        this.canvas.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            
+            if (event.touches.length === 1 && this.touchActive) {
+                const touch = event.touches[0];
+                this.touchCurrent.x = touch.clientX;
+                this.touchCurrent.y = touch.clientY;
+                
+                // Calculate movement vector relative to origin
+                const deltaX = this.touchCurrent.x - this.touchOrigin.x;
+                const deltaY = this.touchCurrent.y - this.touchOrigin.y;
+                
+                // Normalize movement based on screen size and sensitivity
+                // Invert X to match game logic (Q/D mapping) and Y for game coordinates
+                this.touchMovement.x = -deltaX * this.touchSensitivity;
+                this.touchMovement.y = -deltaY * this.touchSensitivity;
+                
+                this.notifyListeners('touchmove', {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    deltaX,
+                    deltaY,
+                    normalizedX: this.touchMovement.x,
+                    normalizedY: this.touchMovement.y,
+                    originalEvent: event
+                });
+            }
+        }, { passive: false });
+
+        // Touch end
+        this.canvas.addEventListener('touchend', (event) => {
+            event.preventDefault();
+            
+            if (event.touches.length === 0) {
+                this.touchActive = false;
+                this.touchMovement.x = 0;
+                this.touchMovement.y = 0;
+                
+                this.notifyListeners('touchend', {
+                    originalEvent: event
+                });
+            }
+        }, { passive: false });
+
+        // Touch cancel
+        this.canvas.addEventListener('touchcancel', (event) => {
+            event.preventDefault();
+            
+            this.touchActive = false;
+            this.touchMovement.x = 0;
+            this.touchMovement.y = 0;
+            
+            this.notifyListeners('touchcancel', {
+                originalEvent: event
+            });
+        }, { passive: false });
+    }
+
     // Register input event listener
     addEventListener(eventType, callback, priority = 100) {
         if (!this.inputListeners.has(eventType)) {
@@ -191,12 +294,48 @@ export class InputManager {
         };
     }
 
-    // Get ZQSD input vector (French AZERTY layout) + Arrow keys
+    // Get ZQSD input vector (French AZERTY layout) + Arrow keys + Touch controls
     getMovementVector() {
+        // Keyboard input
+        const keyboardX = (this.isKeyPressed('q') || this.isKeyPressed('a') || this.isKeyPressed('arrowleft') ? 1 : 0) - (this.isKeyPressed('d') || this.isKeyPressed('arrowright') ? 1 : 0);
+        const keyboardY = (this.isKeyPressed('z') || this.isKeyPressed('w') || this.isKeyPressed('arrowup') ? 1 : 0) - (this.isKeyPressed('s') || this.isKeyPressed('arrowdown') ? 1 : 0);
+        
+        // Touch input (only if mobile and touch is active)
+        let touchX = 0;
+        let touchY = 0;
+        
+        if (this.isMobile && this.touchActive) {
+            touchX = Math.max(-1, Math.min(1, this.touchMovement.x));
+            touchY = Math.max(-1, Math.min(1, this.touchMovement.y));
+        }
+        
+        // Combine keyboard and touch input (keyboard takes priority)
         return {
-            x: (this.isKeyPressed('q') || this.isKeyPressed('a') || this.isKeyPressed('arrowleft') ? 1 : 0) - (this.isKeyPressed('d') || this.isKeyPressed('arrowright') ? 1 : 0),
-            y: (this.isKeyPressed('z') || this.isKeyPressed('w') || this.isKeyPressed('arrowup') ? 1 : 0) - (this.isKeyPressed('s') || this.isKeyPressed('arrowdown') ? 1 : 0)
+            x: keyboardX !== 0 ? keyboardX : touchX,
+            y: keyboardY !== 0 ? keyboardY : touchY
         };
+    }
+
+    // Touch control utilities
+    isTouchActive() {
+        return this.touchActive;
+    }
+
+    getTouchMovement() {
+        return { ...this.touchMovement };
+    }
+
+    getTouchOrigin() {
+        return { ...this.touchOrigin };
+    }
+
+    getTouchCurrent() {
+        return { ...this.touchCurrent };
+    }
+
+    // Check if device is mobile
+    isMobileDevice() {
+        return this.isMobile;
     }
 
     // Check if a key is a game control key
@@ -221,7 +360,19 @@ export class InputManager {
     clearInputStates() {
         this.keys.clear();
         this.mouseButtons.clear();
+        this.clearTouchStates();
         console.log('🎮 Input states cleared');
+    }
+
+    // Clear touch states
+    clearTouchStates() {
+        this.touchActive = false;
+        this.touchMovement.x = 0;
+        this.touchMovement.y = 0;
+        this.touchOrigin.x = 0;
+        this.touchOrigin.y = 0;
+        this.touchCurrent.x = 0;
+        this.touchCurrent.y = 0;
     }
 
     // Get current input summary for debugging
@@ -240,6 +391,11 @@ export class InputManager {
             pressedKeys,
             pressedButtons,
             mousePosition: this.mousePosition,
+            touchActive: this.touchActive,
+            touchMovement: this.touchMovement,
+            touchOrigin: this.touchOrigin,
+            touchCurrent: this.touchCurrent,
+            isMobile: this.isMobile,
             totalListeners: this.inputListeners.size
         };
     }
