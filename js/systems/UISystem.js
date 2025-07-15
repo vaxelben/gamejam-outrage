@@ -65,6 +65,7 @@ export class UISystem extends IGameSystem {
             pointer-events: none;
             z-index: 1000;
             font-family: 'Arial', sans-serif;
+            touch-action: manipulation;
         `;
         document.body.appendChild(this.elements.container);
         
@@ -266,11 +267,12 @@ export class UISystem extends IGameSystem {
             display: flex;
             gap: ${isMobile ? '2px' : '8px'};
             pointer-events: auto;
-            z-index: 1001;
+            z-index: 10000;
             max-width: ${isMobile ? '100vw' : '900px'};
             width: ${isMobile ? 'calc(100vw - 10px)' : 'auto'};
             flex-wrap: wrap;
             justify-content: center;
+            touch-action: manipulation;
         `;
         
         // Neutral option
@@ -322,6 +324,9 @@ export class UISystem extends IGameSystem {
             transition: all 0.2s;
             position: relative;
             overflow: hidden;
+            pointer-events: auto;
+            z-index: 10001;
+            touch-action: manipulation;
         `;
         
         // Create sprite image if not neutral
@@ -381,7 +386,7 @@ export class UISystem extends IGameSystem {
         button.appendChild(tooltip);
         
         // Add click handler
-        button.addEventListener('click', () => {
+        const handleMaskSelect = () => {
             if (key === 'ESC') {
                 this.triggerMaskChange(null);
             } else {
@@ -395,7 +400,28 @@ export class UISystem extends IGameSystem {
                     this.triggerMaskChange(maskIndex + 1);
                 }
             }
-        });
+        };
+        
+        button.addEventListener('click', handleMaskSelect);
+        
+        // Add touch handlers for mobile with passive events for better performance
+        button.addEventListener('touchstart', (event) => {
+            console.log('🎯 Button touchstart:', key);
+            button.style.transform = 'scale(0.95)';
+            button.style.opacity = '0.8';
+        }, { passive: true });
+        
+        button.addEventListener('touchend', (event) => {
+            console.log('🎯 Button touchend:', key);
+            button.style.transform = 'scale(1)';
+            button.style.opacity = '1';
+            handleMaskSelect();
+        }, { passive: true });
+        
+        button.addEventListener('touchcancel', (event) => {
+            button.style.transform = 'scale(1)';
+            button.style.opacity = '1';
+        }, { passive: true });
         
         // Hover effects
         button.addEventListener('mouseenter', () => {

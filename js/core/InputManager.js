@@ -12,8 +12,10 @@ export class InputManager {
         this.touchOrigin = { x: 0, y: 0 };
         this.touchCurrent = { x: 0, y: 0 };
         this.touchMovement = { x: 0, y: 0 };
-        this.touchSensitivity = 0.003; // Will be set from params after import
+        this.touchSensitivity = 0.05; // Much higher sensitivity for mobile testing
         this.isMobile = this.detectMobile();
+        
+
     }
 
     async initialize() {
@@ -26,11 +28,13 @@ export class InputManager {
         this.setupKeyboardListeners();
         this.setupMouseListeners();
         
-        // Setup touch controls for mobile
-        if (this.isMobile) {
+        // Setup touch controls for mobile (or force enable for testing)
+        if (this.isMobile || true) { // Force enable for testing
             this.setupTouchListeners();
             console.log('📱 Touch controls enabled for mobile');
         }
+        
+
 
         console.log('🎮 Input Manager initialized');
     }
@@ -136,17 +140,32 @@ export class InputManager {
 
     // Detect if device is mobile
     detectMobile() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
                ('ontouchstart' in window) || 
                (navigator.maxTouchPoints > 0) ||
                window.innerWidth <= 768;
+        
+
+        
+        return isMobile;
     }
 
     // Setup touch listeners for mobile controls
     setupTouchListeners() {
-        // Touch start
-        this.canvas.addEventListener('touchstart', (event) => {
-            event.preventDefault();
+
+        
+        // Touch start handler
+        const handleTouchStart = (event) => {
+            // Don't interfere with UI elements
+            if (event.target.closest('#ui-container')) {
+                return;
+            }
+            
+            // Only prevent default for game canvas area to avoid blocking UI scrolling
+            if (event.target === this.canvas || event.target.closest('#renderCanvas')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             
             if (event.touches.length === 1) {
                 const touch = event.touches[0];
@@ -162,11 +181,24 @@ export class InputManager {
                     originalEvent: event
                 });
             }
-        }, { passive: false });
+        };
+        
+        // Touch start - add to multiple targets
+        this.canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.body.addEventListener('touchstart', handleTouchStart, { passive: false });
 
-        // Touch move
-        this.canvas.addEventListener('touchmove', (event) => {
-            event.preventDefault();
+        // Touch move handler
+        const handleTouchMove = (event) => {
+            // Don't interfere with UI elements
+            if (event.target.closest('#ui-container')) {
+                return;
+            }
+            
+            // Only prevent default for game canvas area to avoid blocking UI scrolling
+            if (event.target === this.canvas || event.target.closest('#renderCanvas')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             
             if (event.touches.length === 1 && this.touchActive) {
                 const touch = event.touches[0];
@@ -182,6 +214,8 @@ export class InputManager {
                 this.touchMovement.x = -deltaX * this.touchSensitivity;
                 this.touchMovement.y = -deltaY * this.touchSensitivity;
                 
+
+                
                 this.notifyListeners('touchmove', {
                     x: touch.clientX,
                     y: touch.clientY,
@@ -192,11 +226,24 @@ export class InputManager {
                     originalEvent: event
                 });
             }
-        }, { passive: false });
+        };
+        
+        // Touch move - add to multiple targets
+        this.canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.body.addEventListener('touchmove', handleTouchMove, { passive: false });
 
-        // Touch end
-        this.canvas.addEventListener('touchend', (event) => {
-            event.preventDefault();
+        // Touch end handler
+        const handleTouchEnd = (event) => {
+            // Don't interfere with UI elements
+            if (event.target.closest('#ui-container')) {
+                return;
+            }
+            
+            // Only prevent default for game canvas area to avoid blocking UI scrolling
+            if (event.target === this.canvas || event.target.closest('#renderCanvas')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             
             if (event.touches.length === 0) {
                 this.touchActive = false;
@@ -207,11 +254,24 @@ export class InputManager {
                     originalEvent: event
                 });
             }
-        }, { passive: false });
+        };
+        
+        // Touch end - add to multiple targets
+        this.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        document.body.addEventListener('touchend', handleTouchEnd, { passive: false });
 
-        // Touch cancel
-        this.canvas.addEventListener('touchcancel', (event) => {
-            event.preventDefault();
+        // Touch cancel handler
+        const handleTouchCancel = (event) => {
+            // Don't interfere with UI elements
+            if (event.target.closest('#ui-container')) {
+                return;
+            }
+            
+            // Only prevent default for game canvas area to avoid blocking UI scrolling
+            if (event.target === this.canvas || event.target.closest('#renderCanvas')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             
             this.touchActive = false;
             this.touchMovement.x = 0;
@@ -220,8 +280,27 @@ export class InputManager {
             this.notifyListeners('touchcancel', {
                 originalEvent: event
             });
+        };
+        
+        // Touch cancel - add to multiple targets
+        this.canvas.addEventListener('touchcancel', handleTouchCancel, { passive: false });
+        document.body.addEventListener('touchcancel', handleTouchCancel, { passive: false });
+        
+        // Add global touch event prevention to avoid interference
+        document.addEventListener('touchstart', (event) => {
+            // Don't log every global touch to avoid spam
         }, { passive: false });
+        
+        document.addEventListener('touchmove', (event) => {
+            // Don't log every global touch to avoid spam
+        }, { passive: false });
+        
+
+        
+
     }
+
+    
 
     // Register input event listener
     addEventListener(eventType, callback, priority = 100) {
@@ -304,16 +383,20 @@ export class InputManager {
         let touchX = 0;
         let touchY = 0;
         
-        if (this.isMobile && this.touchActive) {
+        if ((this.isMobile || true) && this.touchActive) { // Force enable for testing
             touchX = Math.max(-1, Math.min(1, this.touchMovement.x));
             touchY = Math.max(-1, Math.min(1, this.touchMovement.y));
         }
         
         // Combine keyboard and touch input (keyboard takes priority)
-        return {
+        const result = {
             x: keyboardX !== 0 ? keyboardX : touchX,
             y: keyboardY !== 0 ? keyboardY : touchY
         };
+        
+
+        
+        return result;
     }
 
     // Touch control utilities
