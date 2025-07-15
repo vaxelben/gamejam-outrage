@@ -4,6 +4,7 @@ import { Transform } from '../components/Transform.js';
 import { Renderer } from '../components/Renderer.js';
 import { params } from '../params.js';
 import { serviceContainer } from '../core/ServiceContainer.js';
+import { getTextureForMask } from '../factories/NPCFactory.js';
 
 export class PlayerSystem extends IGameSystem {
     constructor() {
@@ -24,6 +25,9 @@ export class PlayerSystem extends IGameSystem {
         this.currentMask = null;
         this.normal = new THREE.Vector3(0, 1, 0); // Persistent normal vector
         this.lastMovementDirection = new THREE.Vector3(0, 0, 1); // Track last movement direction
+        
+        // Texture loading
+        this.textureLoader = new THREE.TextureLoader();
         
         // Debug UI
         this.debugUI = null;
@@ -57,14 +61,26 @@ export class PlayerSystem extends IGameSystem {
     }
 
     createPlayerRenderer(scene) {
-        const geometry = new THREE.SphereGeometry(params.PLAYER_SIZE / 2, 16, 16);
-        const material = new THREE.MeshLambertMaterial({
-            color: new THREE.Color(0.5, 0.5, 0.5), // Start neutral
-            transparent: false
+        const geometry = new THREE.PlaneGeometry(params.PLAYER_SIZE, params.PLAYER_SIZE);
+        
+        // Load player texture (starts with neutral texture)
+        const texture = this.textureLoader.load('textures/sprites/group_neutre.png');
+        
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
         });
         
         this.renderer = new Renderer(geometry, material);
         this.renderer.createMesh(scene);
+        
+        // Enable shadow casting
+        if (this.renderer.mesh) {
+            this.renderer.mesh.castShadow = true;
+            this.renderer.mesh.receiveShadow = true;
+        }
     }
 
     createDirectionArrow(scene) {
@@ -84,6 +100,28 @@ export class PlayerSystem extends IGameSystem {
         console.log('🏹 Direction arrow created and added to scene');
     }
 
+    updatePlayerOrientation() {
+        if (!this.renderer || !this.renderer.mesh) return;
+        
+        // Get camera for orientation
+        const camera = serviceContainer.resolve('camera');
+        if (!camera) return;
+        
+        // Get the camera's up vector to ensure player is oriented correctly from camera's perspective
+        const cameraUp = new THREE.Vector3();
+        camera.getWorldDirection(cameraUp); // Get camera's forward direction
+        
+        // Calculate camera's actual up vector from its matrix
+        const cameraUpVector = new THREE.Vector3(0, 1, 0);
+        cameraUpVector.applyQuaternion(camera.quaternion);
+        
+        // Set the mesh "up" direction to match camera's up orientation
+        this.renderer.mesh.up.copy(cameraUpVector);
+        
+        // Make the player plane face the camera with correct up orientation
+        this.renderer.mesh.lookAt(camera.position);
+    }
+
     updateDirectionArrow() {
         if (!this.directionArrow) return;
         
@@ -91,7 +129,7 @@ export class PlayerSystem extends IGameSystem {
         const playerPosition = this.transform.position.clone();
         const playerNormal = this.normal.clone();
         
-        // Place arrow slightly above the player sphere
+        // Place arrow slightly above the player plane
         const arrowPosition = playerPosition.clone().add(playerNormal.clone().multiplyScalar(0.4));
         this.directionArrow.position.copy(arrowPosition);
         
@@ -143,7 +181,7 @@ export class PlayerSystem extends IGameSystem {
             position: fixed;
             bottom: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.1);
             color: white;
             padding: 10px;
             border-radius: 8px;
@@ -151,7 +189,6 @@ export class PlayerSystem extends IGameSystem {
             font-size: 11px;
             line-height: 1.3;
             z-index: 1000;
-            border: 1px solid #333;
         `;
         instructions.innerHTML = `
             <strong>🎮 Controls:</strong><br>
@@ -232,6 +269,9 @@ export class PlayerSystem extends IGameSystem {
             this.renderer.updateTransform(this.transform);
         }
         
+        // Update player orientation to always face camera
+        this.updatePlayerOrientation();
+        
         // Update direction arrow
         this.updateDirectionArrow();
     }
@@ -288,8 +328,9 @@ export class PlayerSystem extends IGameSystem {
         }
 
         // 5. Calculate Rotation from Movement
-        // The axis of rotation is perpendicular to the direction of movement.
-        const rotationAxis = new THREE.Vector3().crossVectors(surfaceNormal, movementDirection);
+        // The axis of rotation is perpendicular to the current position and movement direction.
+        // This ensures we rotate around the sphere's center, not around the surface normal.
+        const rotationAxis = new THREE.Vector3().crossVectors(currentPos, movementDirection);
         rotationAxis.normalize();
 
         // The angle of rotation is the distance to travel divided by the sphere's radius.
@@ -401,37 +442,30 @@ export class PlayerSystem extends IGameSystem {
             gameStateSystem.setMask(maskType);
         }
         
+        // Update scene background color based on mask
+        const sceneManager = serviceContainer.resolve('sceneManager');
+        if (sceneManager) {
+            sceneManager.setBackgroundFromMask(maskType);
+        }
+        
         console.log(`🎭 Player mask changed to: ${maskType || 'Neutral'}`);
     }
 
     updatePlayerAppearance() {
-        if (!this.renderer) return;
+        if (!this.renderer || !this.renderer.mesh) return;
         
-        const colors = this.getMaskColors();
-        const color = colors[this.currentMask] || colors[null];
+        // Get the appropriate texture for the current mask
+        const texturePath = getTextureForMask(this.currentMask);
         
-        this.renderer.setColor(color);
+        // Load and apply the new texture
+        const texture = this.textureLoader.load(texturePath);
+        this.renderer.mesh.material.map = texture;
+        this.renderer.mesh.material.needsUpdate = true;
         
-        // Add subtle glow effect for masked state
-        if (this.currentMask !== null) {
-            this.renderer.setEmissive(color, 0.2);
-        } else {
-            this.renderer.setEmissive(new THREE.Color(0, 0, 0), 0);
-        }
+        console.log(`🎭 Player appearance updated with texture: ${texturePath}`);
     }
 
-    getMaskColors() {
-        return {
-            null: new THREE.Color(0.5, 0.5, 0.5), // Grey
-            1: new THREE.Color(0.2, 0.4, 0.8),    // Blue - Conservatives
-            2: new THREE.Color(0.8, 0.2, 0.2),    // Red - Social Justice
-            3: new THREE.Color(1.0, 0.6, 0.2),    // Orange - Libertarians
-            4: new THREE.Color(0.2, 0.6, 0.2),    // Green - Nationalists
-            5: new THREE.Color(0.6, 0.2, 0.8),    // Purple - Culture
-            6: new THREE.Color(0.6, 0.3, 0.1),    // Brown - Religious
-            7: new THREE.Color(1.0, 0.4, 0.8)     // Pink - Antisystem
-        };
-    }
+
 
     // State queries
     canReturnToNeutral() {

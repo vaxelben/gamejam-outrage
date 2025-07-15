@@ -1,4 +1,6 @@
 // core/ServiceContainer.js - Dependency injection container following DIP
+import { eventManager } from './EventManager.js';
+
 export class ServiceContainer {
     constructor() {
         this.services = new Map();
@@ -191,4 +193,7 @@ export class ServiceContainer {
 }
 
 // Global service container instance
-export const serviceContainer = new ServiceContainer(); 
+export const serviceContainer = new ServiceContainer();
+
+// Register the event manager as a singleton
+serviceContainer.registerInstance('eventManager', eventManager); 

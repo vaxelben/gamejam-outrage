@@ -9,6 +9,7 @@ export class SceneManager {
         this.scene = null;
         this.camera = null;
         this.planet = null;
+        this.innerPlanet = null;
         this.planetRadius = 0;
         
         // HUD system for helpers (like drei HUD)
@@ -34,7 +35,8 @@ export class SceneManager {
 
         // Create scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
+        // Initialize with neutral mask background color
+        this.scene.background = new THREE.Color(params.MASK_BACKGROUND_COLORS[null]);
 
         // Create camera
         this.camera = new THREE.PerspectiveCamera(
@@ -65,16 +67,17 @@ export class SceneManager {
         this.toggleHelpers(this.showHelpers);
 
         console.log('🎬 Scene Manager initialized');
+        console.log('🎨 Background color initialized for neutral mask:', params.MASK_BACKGROUND_COLORS[null].toString(16));
     }
 
     createLights() {
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.2);
+        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.9);
         this.scene.add(ambientLight);
 
         // Directional light with shadows
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(0, 10, 5);
+        directionalLight.position.set(20, 20, 5);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
@@ -88,38 +91,87 @@ export class SceneManager {
     }
 
     createPlanet() {
-        const geometry = new THREE.SphereGeometry(params.PLANET_DIAMETER / 2, 64, 64);
+        const outerRadius = params.PLANET_DIAMETER / 2;
+        const innerRadius = outerRadius * params.PLANET_INNER_SPHERE_SCALE;
         
         // Load planet textures
         const textureLoader = new THREE.TextureLoader();
-        const planetTexture = textureLoader.load('textures/planet_color.jpg');
-        const planetNormalMap = textureLoader.load('textures/planet_normal.jpg');
         
-        const material = new THREE.MeshPhongMaterial({ 
-            map: planetTexture, // Color texture
-            // normalMap: planetNormalMap, // Normal map for surface details
-            normalScale: new THREE.Vector2(0.1, 0.1), // Adjust intensity if needed
-            transparent: false,
-            shininess: 30, // Low shininess for a more natural planet look
-            // metalness: 1.0,
-            // roughness: 0.5
+        // Create outer planet (existing planet)
+        const outerGeometry = new THREE.SphereGeometry(outerRadius, 64, 64);
+        const outerTexture = textureLoader.load('textures/bordel_ext.png');
+        
+        // Configure outer texture
+        outerTexture.wrapS = THREE.RepeatWrapping;
+        outerTexture.wrapT = THREE.ClampToEdgeWrapping;
+        
+        const outerMaterial = new THREE.MeshStandardMaterial({ 
+            map: outerTexture,
+            transparent: params.PLANET_OUTER_OPACITY < 1.0,
+            opacity: params.PLANET_OUTER_OPACITY,
+            roughness: 0.3,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+            // Force rendering order to ensure inner sphere is visible
+            depthWrite: params.PLANET_OUTER_OPACITY < 1.0 ? false : true
         });
         
-        this.planet = new THREE.Mesh(geometry, material);
+        this.planet = new THREE.Mesh(outerGeometry, outerMaterial);
         this.planet.receiveShadow = true;
         this.planet.castShadow = true;
+        // Set render order for outer sphere
+        this.planet.renderOrder = 1;
         this.scene.add(this.planet);
         
-        this.planetRadius = params.PLANET_DIAMETER / 2;
+        // Create inner sphere
+        const innerGeometry = new THREE.SphereGeometry(innerRadius, 64, 64);
+        const innerTexture = textureLoader.load('textures/bordel_int.png');
+        
+        // Configure inner texture
+        innerTexture.wrapS = THREE.RepeatWrapping;
+        innerTexture.wrapT = THREE.ClampToEdgeWrapping;
+        
+        const innerMaterial = new THREE.MeshStandardMaterial({ 
+            map: innerTexture,
+            transparent: true,
+            opacity: params.PLANET_INNER_OPACITY,
+            roughness: 0.9,
+            metalness: 0.0,
+            side: THREE.DoubleSide,
+            // Ensure inner sphere renders after outer sphere
+            depthTest: true,
+            depthWrite: true
+        });
+        
+        this.innerPlanet = new THREE.Mesh(innerGeometry, innerMaterial);
+        this.innerPlanet.receiveShadow = true;
+        this.innerPlanet.castShadow = false; // Inner sphere doesn't cast shadows
+        // Set render order for inner sphere (higher = rendered later)
+        this.innerPlanet.renderOrder = 2;
+        this.scene.add(this.innerPlanet);
+        
+        this.planetRadius = outerRadius;
         
         console.log('🌍 Planet created successfully:', {
-            radius: this.planetRadius,
-            position: this.planet.position,
-            visible: this.planet.visible,
-            colorTexture: 'textures/planet_color.jpg',
-            normalMap: 'textures/planet_normal.jpg',
-            inScene: this.scene.children.includes(this.planet)
+            outerRadius: outerRadius,
+            innerRadius: innerRadius,
+            outerOpacity: params.PLANET_OUTER_OPACITY,
+            innerOpacity: params.PLANET_INNER_OPACITY,
+            outerTexture: 'textures/bordel_ext.png',
+            innerTexture: 'textures/bordel_int.png',
+            inScene: this.scene.children.includes(this.planet) && this.scene.children.includes(this.innerPlanet),
+            innerVisible: this.innerPlanet.visible,
+            outerVisible: this.planet.visible
         });
+        
+        // Debug: Check if inner sphere is visible
+        if (params.PLANET_OUTER_OPACITY >= 1.0 && innerRadius < outerRadius * 0.8) {
+            console.warn('⚠️  Inner sphere may not be visible: outer sphere is opaque and inner sphere is small');
+            console.log('💡 Suggestions:');
+            console.log('   - Reduce PLANET_OUTER_OPACITY to < 1.0 to make outer sphere transparent');
+            console.log('   - Increase PLANET_INNER_SPHERE_SCALE to make inner sphere bigger');
+            console.log('   - Use toggleInnerSphereVisibility() method to debug');
+        }
     }
 
     initializeHUD() {
@@ -450,9 +502,135 @@ export class SceneManager {
         return this.planet;
     }
 
+    // Get inner planet reference
+    getInnerPlanet() {
+        return this.innerPlanet;
+    }
+
     // Get planet radius
     getPlanetRadius() {
         return this.planetRadius;
+    }
+
+    // Get inner planet radius
+    getInnerPlanetRadius() {
+        return this.planetRadius * params.PLANET_INNER_SPHERE_SCALE;
+    }
+
+    // Set background color
+    setBackgroundColor(color) {
+        if (this.scene && this.scene.background) {
+            this.scene.background = new THREE.Color(color);
+        }
+    }
+
+    // Get current background color
+    getBackgroundColor() {
+        return this.scene && this.scene.background ? this.scene.background.getHex() : 0x000000;
+    }
+
+    // Set background color using predefined colors
+    setBackgroundFromPreset(colorName) {
+        const color = params.BACKGROUND_COLORS[colorName];
+        if (color !== undefined) {
+            this.setBackgroundColor(color);
+            console.log(`🎨 Background color set to ${colorName} (${color.toString(16)})`);
+        } else {
+            console.warn(`🎨 Background color preset "${colorName}" not found. Available presets:`, Object.keys(params.BACKGROUND_COLORS));
+        }
+    }
+
+    // Set background color based on player mask
+    setBackgroundFromMask(maskType) {
+        const color = params.MASK_BACKGROUND_COLORS[maskType];
+        if (color !== undefined) {
+            this.setBackgroundColor(color);
+            const maskName = this.getMaskName(maskType);
+            console.log(`🎭 Background color changed to match ${maskName} mask (${color.toString(16)})`);
+        } else {
+            console.warn(`🎭 Background color for mask "${maskType}" not found. Available masks:`, Object.keys(params.MASK_BACKGROUND_COLORS));
+        }
+    }
+
+    // Get mask name for logging
+    getMaskName(maskType) {
+        const maskNames = {
+            null: 'Neutral',
+            1: 'Conservative',
+            2: 'Social Justice',
+            3: 'Libertarian',
+            4: 'Nationalist',
+            5: 'Culture',
+            6: 'Religious',
+            7: 'Antisystem'
+        };
+        return maskNames[maskType] || 'Unknown';
+    }
+
+    // Test all mask background colors (for debugging)
+    testAllMaskColors() {
+        console.log('🎨 Testing all mask background colors:');
+        const masks = [null, 1, 2, 3, 4, 5, 6, 7];
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < masks.length) {
+                const maskType = masks[currentIndex];
+                this.setBackgroundFromMask(maskType);
+                currentIndex++;
+                setTimeout(testNext, 2000); // Change color every 2 seconds
+            } else {
+                console.log('🎨 Mask color test completed');
+                this.setBackgroundFromMask(null); // Return to neutral
+            }
+        };
+        
+        testNext();
+    }
+
+    // Debug methods for planet visibility
+    toggleInnerSphereVisibility() {
+        if (this.innerPlanet) {
+            this.innerPlanet.visible = !this.innerPlanet.visible;
+            console.log(`🌍 Inner sphere visibility: ${this.innerPlanet.visible ? 'ON' : 'OFF'}`);
+        }
+    }
+
+    toggleOuterSphereVisibility() {
+        if (this.planet) {
+            this.planet.visible = !this.planet.visible;
+            console.log(`🌍 Outer sphere visibility: ${this.planet.visible ? 'ON' : 'OFF'}`);
+        }
+    }
+
+    // Temporarily make outer sphere transparent to see inner sphere
+    toggleOuterSphereTransparency() {
+        if (this.planet && this.planet.material) {
+            const material = this.planet.material;
+            if (material.opacity >= 1.0) {
+                material.transparent = true;
+                material.opacity = 0.3;
+                console.log('🌍 Outer sphere made transparent (0.3)');
+            } else {
+                material.transparent = false;
+                material.opacity = 1.0;
+                console.log('🌍 Outer sphere made opaque (1.0)');
+            }
+        }
+    }
+
+    // Get planet debug info
+    getPlanetDebugInfo() {
+        return {
+            outerRadius: this.planetRadius,
+            innerRadius: this.getInnerPlanetRadius(),
+            outerOpacity: this.planet?.material?.opacity || 'N/A',
+            innerOpacity: this.innerPlanet?.material?.opacity || 'N/A',
+            outerVisible: this.planet?.visible || false,
+            innerVisible: this.innerPlanet?.visible || false,
+            outerRenderOrder: this.planet?.renderOrder || 'N/A',
+            innerRenderOrder: this.innerPlanet?.renderOrder || 'N/A'
+        };
     }
 
     // Cleanup

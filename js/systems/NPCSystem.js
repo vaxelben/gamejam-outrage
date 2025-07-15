@@ -591,9 +591,22 @@ export class NPCSystem extends IGameSystem {
         const gameStateSystem = serviceContainer.resolve('gameStateSystem');
         if (!gameStateSystem) return;
         
+        // Throttle interactions to prevent event spam
+        const currentTime = Date.now();
+        if (!npc.lastInteractionTime) {
+            npc.lastInteractionTime = 0;
+        }
+        
+        // Only process interaction if enough time has passed (500ms cooldown)
+        const interactionCooldown = 500;
+        if (currentTime - npc.lastInteractionTime < interactionCooldown) {
+            return;
+        }
+        
         if (playerMask === null) {
             // Neutral player - mild curiosity but no strong reaction
             npc.playerInfluence = Math.max(0, npc.playerInfluence - 0.1);
+            npc.lastInteractionTime = currentTime;
             return;
         }
         
@@ -626,6 +639,9 @@ export class NPCSystem extends IGameSystem {
             npc.separationBoost = 2.0;
             npc.separationBoostTimer = 4.0;
         }
+        
+        // Update last interaction time
+        npc.lastInteractionTime = currentTime;
         
         // Trigger flocking response in nearby NPCs
         this.triggerFlockingResponse(npc, playerMask);

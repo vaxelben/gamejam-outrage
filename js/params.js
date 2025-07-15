@@ -3,15 +3,46 @@ export const params = {
     // Planet settings
     PLANET_DIAMETER: 60,
     PLANET_SURFACE_OFFSET: 3, // Distance above surface
+    PLANET_INNER_SPHERE_SCALE: 0.95, // Scale factor for inner sphere (0.95 = 95% of outer sphere)
+    PLANET_OUTER_OPACITY: 0.9999999, // Outer sphere opacity (transparent to see inner sphere)
+    PLANET_INNER_OPACITY: 0.9999, // Inner sphere opacity (more opaque)
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 0.5,
+    PLAYER_SIZE: 1.0,
     
     // Camera settings
     CAMERA_DISTANCE: 10,
     CAMERA_HEIGHT_OFFSET: 20,
     
+    // Scene appearance
+    BACKGROUND_COLOR: 0x001122,  // Dark blue background
+    BACKGROUND_OPACITY: 1.0,     // Background opacity (0-1)
+    
+    // Predefined background colors
+    BACKGROUND_COLORS: {
+        BLACK: 0x000000,
+        DARK_BLUE: 0x001122,
+        DARK_PURPLE: 0x1a0524,
+        DARK_GREEN: 0x0d2818,
+        DARK_RED: 0x2a0a0a,
+        DEEP_SPACE: 0x020011,
+        TWILIGHT: 0x2c1810,
+        MIDNIGHT: 0x0f0f23
+    },
+    
+    // Background colors based on player mask
+    MASK_BACKGROUND_COLORS: {
+        null: 0x001122,        // Neutral - Default dark blue
+        1: 0x0a1a3a,         // Conservative - Deep blue
+        2: 0x3a0a0a,         // Social Justice - Deep red
+        3: 0x332211,         // Libertarian - Deep orange/brown
+        4: 0x0a2a0a,         // Nationalist - Deep green
+        5: 0x2a0a3a,         // Culture - Deep purple
+        6: 0x2a1a0a,         // Religious - Deep brown
+        7: 0x3a1a2a          // Antisystem - Deep pink
+    },
+
     // Outrage system
     OUTRAGE_INCREASE_RATE: 0.1,    // Per second in wrong crowd
     OUTRAGE_DECAY_RATE: 0.05,        // Per second when not in crowd
@@ -45,7 +76,7 @@ export const params = {
     CHAOS_TIME_REQUIRED: 30,      // 30 seconds
     
     // NPC system parameters
-    NPC_SIZE: 0.5,                   // Size of individual NPCs
+    NPC_SIZE: 1.0,                   // Size of individual NPCs
     NPC_GROUP_SIZE: 20,              // Number of NPCs per group
     NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
     NPC_SPEED_VARIATION: 8,
@@ -65,8 +96,8 @@ export const params = {
     NPC_FLOCKING_RADIUS: 4.0,        // Distance to consider other NPCs for flocking
     NPC_SEPARATION_FORCE: 2.0,       // Force to avoid crowding (separation)
     NPC_ALIGNMENT_FORCE: 2.0,        // Force to align with neighbors (alignment)
-    NPC_COHESION_FORCE: 2.0,         // Force to move toward group center (cohesion)
-    NPC_SEPARATION_RADIUS: 2.0,      // Distance for separation behavior
+    NPC_COHESION_FORCE: 5.0,         // Force to move toward group center (cohesion)
+    NPC_SEPARATION_RADIUS: 3.0,      // Distance for separation behavior
     NPC_ALIGNMENT_RADIUS: 6.0,       // Distance for alignment behavior
     NPC_COHESION_RADIUS: 8.0,        // Distance for cohesion behavior
     NPC_MAX_FORCE: 4.0,              // Maximum force that can be applied
@@ -85,9 +116,9 @@ export const params = {
     // Game balancing
     GAME_SPEED_MULTIPLIER: 1.0,      // Overall game speed multiplier
     DIFFICULTY_SCALING: 1.2,         // How much difficulty increases over time
-    PLAYER_INFLUENCE_RADIUS: 10,
+    PLAYER_INFLUENCE_RADIUS: 7.0,
     PLAYER_ATTRACTION_FORCE: 0.5,
-    PLAYER_REPULSION_FORCE: 1.0,
+    PLAYER_REPULSION_FORCE: 10.0,
     
     // Visual settings
     PLANET_TEXTURE_SCALE: 1.0,       // Scale of planet texture

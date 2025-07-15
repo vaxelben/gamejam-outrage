@@ -22,6 +22,20 @@ export function createNPC(type, config) {
     return creator(config);
 }
 
+// Texture helper - maps mask types to corresponding group textures
+function getTextureForMask(maskId) {
+    const textures = {
+        1: 'textures/sprites/group_conservative.png',    // Conservatives
+        2: 'textures/sprites/group_sjw.png',            // Social Justice
+        3: 'textures/sprites/group_libertarian.png',    // Libertarians
+        4: 'textures/sprites/group_nationalist.png',    // Nationalists
+        5: 'textures/sprites/group_culture.png',        // Culture
+        6: 'textures/sprites/group_religious.png',      // Religious
+        7: 'textures/sprites/group_antisystem.png'      // Antisystem
+    };
+    return textures[maskId] || 'textures/sprites/group_neutre.png'; // Fallback to neutral
+}
+
 // Generic NPC creator function compatible with NPCSystem
 function createBasicNPC(config) {
     const {
@@ -105,11 +119,11 @@ function createBasicNPC(config) {
     // Create renderer immediately
     if (scene) {
         const geometry = new THREE.PlaneGeometry((params.NPC_SIZE || 0.5), (params.NPC_SIZE || 0.5));
-        const texture = textureLoader.load('textures/sprites/group_neutre.png');
-        const material = new THREE.MeshLambertMaterial({ 
+        const texture = textureLoader.load(getTextureForMask(maskType));
+        const material = new THREE.MeshBasicMaterial({ 
             map: texture,
-            color: color,
             transparent: true,
+            alphaTest: 0.5,
             side: THREE.DoubleSide
         });
         
@@ -264,4 +278,4 @@ registerNPCType('leader', createLeaderNPC);
 registerNPCType('follower', createFollowerNPC);
 
 // Export for easy extension
-export { createBasicNPC, createAdvancedNPC, getColorForMask }; 
+export { createBasicNPC, createAdvancedNPC, getColorForMask, getTextureForMask }; 

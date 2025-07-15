@@ -2,6 +2,8 @@
 import { IGameSystem } from '../interfaces/IGameSystem.js';
 import { params } from '../params.js';
 import { serviceContainer } from '../core/ServiceContainer.js';
+import { getTextureForMask } from '../factories/NPCFactory.js';
+import { GameEventTypes, EventDataFactory, EventPriorities } from '../interfaces/GameEvents.js';
 
 export class UISystem extends IGameSystem {
     constructor() {
@@ -22,14 +24,32 @@ export class UISystem extends IGameSystem {
         // Create UI elements
         this.createUIElements();
         
-        // Listen to game state changes
-        if (this.gameStateSystem) {
-            this.gameStateSystem.addEventListener((event) => {
-                this.onGameStateChange(event);
-            });
-        }
+        // Subscribe to game events using new event system
+        this.subscribeToEvent(
+            GameEventTypes.GAME_STATE_CHANGE,
+            (event) => this.onGameStateChange(event),
+            EventPriorities.LOW // UI updates have low priority
+        );
         
-        console.log('🖥️ UI System initialized');
+        this.subscribeToEvent(
+            GameEventTypes.GAME_OUTRAGE_CHANGE,
+            (event) => this.onOutrageChange(event),
+            EventPriorities.LOW
+        );
+        
+        this.subscribeToEvent(
+            GameEventTypes.PLAYER_MASK_CHANGE,
+            (event) => this.onPlayerMaskChange(event),
+            EventPriorities.LOW
+        );
+        
+        this.subscribeToEvent(
+            GameEventTypes.GAME_OVER,
+            (event) => this.onGameOver(event),
+            EventPriorities.HIGH // Game over needs immediate UI response
+        );
+        
+        console.log('🖥️ UI System initialized with event subscriptions');
     }
 
     createUIElements() {
@@ -65,7 +85,7 @@ export class UISystem extends IGameSystem {
             transform: translateY(-50%);
             width: 40px;
             height: 300px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.1);
             border-radius: 20px;
             padding: 15px 10px;
             pointer-events: auto;
@@ -133,7 +153,7 @@ export class UISystem extends IGameSystem {
             transform: translateY(-50%);
             width: 40px;
             height: 300px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.1);
             border-radius: 20px;
             padding: 15px 10px;
             pointer-events: auto;
@@ -199,7 +219,7 @@ export class UISystem extends IGameSystem {
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.1);
             color: white;
             padding: 15px 30px;
             border-radius: 10px;
@@ -235,14 +255,17 @@ export class UISystem extends IGameSystem {
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.1);
             color: white;
             padding: 15px;
             border-radius: 10px;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             pointer-events: auto;
             z-index: 1001;
+            max-width: 900px;
+            flex-wrap: wrap;
+            justify-content: center;
         `;
         
         // Neutral option
@@ -277,19 +300,41 @@ export class UISystem extends IGameSystem {
         button.style.cssText = `
             width: 80px;
             height: 60px;
-            background: ${color};
+            background: ${color || 'rgba(80, 80, 80, 0.7)'};
             border: 2px solid #fff;
             border-radius: 10px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s;
             position: relative;
+            overflow: hidden;
         `;
         
+        // Create sprite image if not neutral
+        if (key !== 'ESC') {
+            const maskNames = [
+                'Conservative', 'Social Justice', 'Libertarian',
+                'Nationalist', 'Culture', 'Religious', 'Antisystem'
+            ];
+            const maskIndex = maskNames.indexOf(key);
+            if (maskIndex !== -1) {
+                const spriteImg = document.createElement('img');
+                spriteImg.src = getTextureForMask(maskIndex + 1);
+                spriteImg.style.cssText = `
+                    width: 30px;
+                    height: 30px;
+                    object-fit: contain;
+                    margin-bottom: 3px;
+                `;
+                button.appendChild(spriteImg);
+            }
+        }
+        
         const keySpan = document.createElement('span');
-        keySpan.textContent = key;
+        keySpan.textContent = key === 'ESC' ? 'ESC' : name;
         keySpan.style.cssText = `
             font-weight: bold;
             color: white;
@@ -297,6 +342,8 @@ export class UISystem extends IGameSystem {
             font-size: 9px;
             text-align: center;
             line-height: 1.1;
+            max-width: 75px;
+            overflow: hidden;
         `;
         
         const tooltip = document.createElement('div');
@@ -306,7 +353,7 @@ export class UISystem extends IGameSystem {
             bottom: 70px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.1);
             color: white;
             padding: 5px 10px;
             border-radius: 5px;
@@ -352,15 +399,10 @@ export class UISystem extends IGameSystem {
     }
 
     triggerMaskChange(maskType) {
-        // Get the player system to handle mask changes
+        // Only call player system - it will handle the rest via proper flow
         const playerSystem = serviceContainer.resolve('playerSystem');
         if (playerSystem) {
             playerSystem.setMask(maskType);
-        }
-        
-        // Also trigger through game state system as backup
-        if (this.gameStateSystem) {
-            this.gameStateSystem.setMask(maskType);
         }
         
         console.log(`🎭 UI triggered mask change to: ${maskType || 'Neutral'}`);
@@ -374,7 +416,7 @@ export class UISystem extends IGameSystem {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.1);
             display: none;
             align-items: center;
             justify-content: center;
@@ -383,7 +425,7 @@ export class UISystem extends IGameSystem {
         
         const gameOverContent = document.createElement('div');
         gameOverContent.style.cssText = `
-            background: rgba(20, 20, 20, 0.9);
+            background: rgba(20, 20, 20, 0.5);
             color: white;
             padding: 40px;
             border-radius: 20px;
@@ -540,8 +582,69 @@ export class UISystem extends IGameSystem {
 
     // IGameSystem implementation
     onGameStateChange(event) {
-        if (event.property === 'gameOver') {
-            this.showGameOver(event.newValue.reason, this.gameStateSystem.getFullState());
+        // Handle both new and legacy event formats
+        if (event.data && event.data.property) {
+            // New event format
+            this.handleStatePropertyChange(event.data.property, event.data.newValue, event.data.oldValue);
+        } else if (event.property) {
+            // Legacy format
+            this.handleStatePropertyChange(event.property, event.newValue, event.oldValue);
+        }
+    }
+    
+    onOutrageChange(event) {
+        // Handle specific outrage changes
+        const outrageData = event.data;
+        console.log(`🎭 Outrage changed: ${outrageData.oldOutrage} → ${outrageData.newOutrage}`);
+        
+        // Update outrage display with smooth animation
+        this.updateOutrageDisplay(outrageData.newOutrage);
+    }
+    
+    onPlayerMaskChange(event) {
+        // Handle player mask changes
+        const maskData = event.data;
+        console.log(`🎭 Player mask changed: ${maskData.oldMask} → ${maskData.newMask}`);
+        
+        // Update mask display
+        this.updateMaskDisplay(maskData.newMask);
+        
+        // Publish UI event for mask selection
+        this.publishEvent(GameEventTypes.UI_MASK_SELECT, {
+            maskType: maskData.newMask,
+            previousMask: maskData.oldMask,
+            source: 'player_action'
+        });
+    }
+    
+    onGameOver(event) {
+        // Handle game over
+        const gameOverData = event.data;
+        console.log(`🎮 Game over: ${gameOverData.reason}`);
+        
+        // Show game over screen
+        this.showGameOver(gameOverData.reason, gameOverData.stats);
+    }
+    
+    handleStatePropertyChange(property, newValue, oldValue) {
+        switch (property) {
+            case 'gameOver':
+                if (newValue && newValue.reason) {
+                    this.showGameOver(newValue.reason, this.gameStateSystem.getFullState());
+                }
+                break;
+            case 'outrage':
+                this.updateOutrageDisplay(newValue);
+                break;
+            case 'energy':
+                this.updateEnergyDisplay(newValue);
+                break;
+            case 'gameTime':
+                this.updateTimeDisplay(newValue);
+                break;
+            case 'polarisedPeople':
+                this.updatePolarisedDisplay(newValue);
+                break;
         }
     }
 
