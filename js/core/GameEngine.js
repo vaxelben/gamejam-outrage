@@ -3,6 +3,7 @@ import { SceneManager } from './SceneManager.js';
 import { SystemManager } from './SystemManager.js';
 import { InputManager } from './InputManager.js';
 import { serviceContainer } from './ServiceContainer.js';
+import { params } from '../params.js';
 
 export class GameEngine {
     constructor() {
@@ -55,7 +56,9 @@ export class GameEngine {
     gameLoop() {
         if (!this.isRunning) return;
         
-        const deltaTime = this.clock.getDelta();
+        const rawDeltaTime = this.clock.getDelta();
+        // Cap deltaTime to prevent physics issues when page loses focus
+        const deltaTime = Math.min(rawDeltaTime, params.MAX_DELTA_TIME);
         
         // Update all systems through system manager
         this.systemManager.update(deltaTime);

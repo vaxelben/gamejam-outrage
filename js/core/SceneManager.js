@@ -89,15 +89,13 @@ export class SceneManager {
         directionalLight.shadow.camera.bottom = -50;
         this.scene.add(directionalLight);
 
-        // Camera-following spotlight (always above camera, pointing to center)
-        this.cameraLight = new THREE.SpotLight(0xffffff, 1.5, 150, Math.PI / 3, 0.2, 1);
+        // Camera-following directional light (always follows camera direction)
+        this.cameraLight = new THREE.DirectionalLight(0xffffff, 1.5);
         this.cameraLight.position.set(0, 0, 0); // Will be updated in updateCamera
-        this.cameraLight.target.position.set(0, 0, 0); // Always point to center
         this.cameraLight.castShadow = false; // Disable shadows for performance
         this.scene.add(this.cameraLight);
-        this.scene.add(this.cameraLight.target);
         
-        console.log('💡 Camera-following spotlight created with enhanced parameters');
+        console.log('💡 Camera-following directional light created');
     }
 
     createPlanet() {
@@ -122,7 +120,7 @@ export class SceneManager {
             opacity: params.PLANET_OUTER_OPACITY,
             roughness: 0.9,
             metalness: 0.1,
-            side: THREE.DoubleSide,
+            side: THREE.FrontSide,
             // Force rendering order to ensure inner sphere is visible
             depthWrite: params.PLANET_OUTER_OPACITY < 1.0 ? false : true
         });
@@ -165,7 +163,7 @@ export class SceneManager {
             transparent: true,
             opacity: params.PLANET_INNER_OPACITY,
             roughness: 0.1, // Very low roughness for high reflectivity
-            metalness: 0.9, // Increased metalness for reflective effect
+            metalness: 0.5, // Increased metalness for reflective effect
             clearcoat: 0.8, // Add clearcoat for extra shine
             clearcoatRoughness: 0.05, // Very smooth clearcoat
             envMapIntensity: 1.5, // Increase environment map reflection
@@ -520,7 +518,7 @@ export class SceneManager {
         this.lastCameraUp.copy(cameraUp);
     }
 
-    // Update camera-following spotlight position
+    // Update camera-following directional light position and direction
     updateCameraLight(playerPosition) {
         if (this.cameraLight) {
             // Calculate player normal vector
@@ -529,23 +527,26 @@ export class SceneManager {
             // Get camera up vector for positioning light above camera
             const cameraUp = this.camera.up.clone();
             
-            // Position spotlight above camera with some offset
-            const lightOffset = cameraUp.multiplyScalar(25); // 15 units above camera for better spotlight coverage
-            const lightPosition = this.camera.position.clone().add(lightOffset);
+            // Get camera right vector for positioning light to the right
+            const cameraRight = new THREE.Vector3();
+            cameraRight.crossVectors(this.camera.up, new THREE.Vector3().copy(playerPosition).sub(this.camera.position).normalize());
+            cameraRight.normalize();
+            
+            // Position directional light above and to the right of camera
+            const upOffset = cameraUp.multiplyScalar(150); // 25 units above camera
+            const rightOffset = cameraRight.multiplyScalar(-150); // 15 units to the right of camera
+            const lightPosition = this.camera.position.clone().add(upOffset).add(rightOffset);
             
             this.cameraLight.position.copy(lightPosition);
             
-            // Ensure spotlight target is always at scene center
-            this.cameraLight.target.position.set(0, 0, 0);
+            // Make directional light point towards scene center
+            const sceneCenter = new THREE.Vector3(0, 0, 0);
+            this.cameraLight.lookAt(sceneCenter);
             
             // Optionally adjust light intensity based on distance to player
             const distanceToPlayer = this.camera.position.distanceTo(playerPosition);
             const intensityScale = Math.max(0.8, Math.min(2.0, 30 / distanceToPlayer));
             this.cameraLight.intensity = 1.5 * intensityScale;
-            
-            // Adjust spotlight angle based on distance for better coverage
-            const angleScale = Math.max(0.7, Math.min(1.5, distanceToPlayer / 20));
-            this.cameraLight.angle = (Math.PI / 3) * angleScale;
         }
     }
 
@@ -713,35 +714,29 @@ export class SceneManager {
         }
     }
 
-    // Debug method for adjusting camera spotlight
-    setCameraSpotlightParams(intensity = 1.5, distance = 150, angle = Math.PI / 3, penumbra = 0.2) {
+    // Debug method for adjusting camera directional light
+    setCameraDirectionalLightParams(intensity = 1.5) {
         if (this.cameraLight) {
             this.cameraLight.intensity = intensity;
-            this.cameraLight.distance = distance;
-            this.cameraLight.angle = angle;
-            this.cameraLight.penumbra = penumbra;
-            console.log(`💡 Camera spotlight updated:`, {
+            console.log(`💡 Camera directional light updated:`, {
                 intensity: intensity,
-                distance: distance,
-                angle: angle,
-                penumbra: penumbra,
                 position: this.cameraLight.position,
-                target: this.cameraLight.target.position
+                rotation: this.cameraLight.rotation
             });
         }
     }
 
-    // Debug method for testing spotlight colors
-    setCameraSpotlightColor(color = 0xffffff) {
+    // Debug method for testing directional light colors
+    setCameraDirectionalLightColor(color = 0xffffff) {
         if (this.cameraLight) {
             this.cameraLight.color.setHex(color);
-            console.log(`💡 Camera spotlight color set to: ${color.toString(16)}`);
+            console.log(`💡 Camera directional light color set to: ${color.toString(16)}`);
         }
     }
 
-    // Test different spotlight colors for enhanced visual effect
-    testSpotlightColors() {
-        console.log('🎨 Testing spotlight colors...');
+    // Test different directional light colors for enhanced visual effect
+    testDirectionalLightColors() {
+        console.log('🎨 Testing directional light colors...');
         const colors = [
             { name: 'White', color: 0xffffff },
             { name: 'Warm White', color: 0xfff8dc },
@@ -756,13 +751,13 @@ export class SceneManager {
         const testNext = () => {
             if (currentIndex < colors.length) {
                 const colorData = colors[currentIndex];
-                this.setCameraSpotlightColor(colorData.color);
-                console.log(`🎨 Testing ${colorData.name} spotlight`);
+                this.setCameraDirectionalLightColor(colorData.color);
+                console.log(`🎨 Testing ${colorData.name} directional light`);
                 currentIndex++;
                 setTimeout(testNext, 2000); // Change color every 2 seconds
             } else {
-                console.log('🎨 Spotlight color test completed');
-                this.setCameraSpotlightColor(0xffffff); // Return to white
+                console.log('🎨 Directional light color test completed');
+                this.setCameraDirectionalLightColor(0xffffff); // Return to white
             }
         };
         
@@ -840,10 +835,9 @@ export class SceneManager {
             this.hudLabels = null;
         }
         
-        // Clean up camera spotlight
+        // Clean up camera directional light
         if (this.cameraLight) {
             this.scene.remove(this.cameraLight);
-            this.scene.remove(this.cameraLight.target);
             this.cameraLight = null;
         }
         

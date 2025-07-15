@@ -4,8 +4,8 @@ export const params = {
     PLANET_DIAMETER: 60,
     PLANET_SURFACE_OFFSET: 3, // Distance above surface
     PLANET_INNER_SPHERE_SCALE: 0.97, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
-    PLANET_OUTER_OPACITY: 0.7, // Outer sphere opacity (more transparent to see inner sphere)
-    PLANET_INNER_OPACITY: 0.95, // Inner sphere opacity (more opaque to show details)
+    PLANET_OUTER_OPACITY: 0.9999, // Outer sphere opacity (more transparent to see inner sphere)
+    PLANET_INNER_OPACITY: 0.5, // Inner sphere opacity (more opaque to show details)
     
     // Player movement
     PLAYER_SPEED: 20,
@@ -129,6 +129,7 @@ export const params = {
     MAX_VISIBLE_NPCS: 200,           // Maximum NPCs to render
     LOD_DISTANCE: 50,                // Distance for level of detail switching
     PHYSICS_STEP_SIZE: 0.016,        // Physics simulation step size
+    MAX_DELTA_TIME: 1/60,            // Maximum deltaTime to prevent physics issues (16.67ms)
 };
 
 // Tweakpane integration for live parameter tuning
