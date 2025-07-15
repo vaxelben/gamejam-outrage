@@ -117,6 +117,9 @@ export class NPCSystem extends IGameSystem {
 
         // --- Collision resolution (every frame) ---
         this.resolveCollisions();
+        
+        // --- Player-NPC collision resolution (every frame) ---
+        this.resolvePlayerNPCCollisions();
 
         // --- Final renderer update (every frame) ---
         for (const npc of this.npcs) {
@@ -148,6 +151,55 @@ export class NPCSystem extends IGameSystem {
                     // Re-project to surface after correction
                     this.projectToSurface(npc1);
                     this.projectToSurface(npc2);
+                }
+            }
+        }
+    }
+
+    resolvePlayerNPCCollisions() {
+        // Check if collisions are enabled
+        if (!params.PLAYER_NPC_COLLISION_ENABLED) return;
+        
+        const playerSystem = serviceContainer.resolve('playerSystem');
+        if (!playerSystem) return;
+        
+        const playerPosition = playerSystem.getPlayerPosition();
+        if (!playerPosition) return;
+        
+        // Collision radius with configurable overlap
+        const collisionRadius = (params.PLAYER_SIZE + params.NPC_SIZE) * params.PLAYER_NPC_COLLISION_RADIUS;
+        
+        for (const npc of this.npcs) {
+            const distance = npc.transform.position.distanceTo(playerPosition);
+            
+            if (distance < collisionRadius && distance > 0.01) { // Small threshold to avoid division by zero
+                const overlap = collisionRadius - distance;
+                
+                // Direction from player to NPC (to push NPC away)
+                const direction = new THREE.Vector3()
+                    .subVectors(npc.transform.position, playerPosition)
+                    .normalize();
+                
+                // Move NPC away from player with configurable push force
+                const repulsionStrength = Math.min(overlap * params.PLAYER_NPC_PUSH_FORCE, 2.0);
+                const correction = direction.multiplyScalar(repulsionStrength);
+                const newNPCPosition = npc.transform.position.clone().add(correction);
+                
+                // Project NPC to planet surface
+                const surfaceNormal = newNPCPosition.clone().normalize();
+                const targetDistance = this.planetRadius + params.NPC_SIZE / 2;
+                newNPCPosition.copy(surfaceNormal.multiplyScalar(targetDistance));
+                
+                // Update NPC position
+                npc.transform.setPosition(newNPCPosition.x, newNPCPosition.y, newNPCPosition.z);
+                
+                // Add velocity to the NPC to make the push feel more natural
+                const pushVelocity = direction.multiplyScalar(repulsionStrength * params.PLAYER_NPC_PUSH_VELOCITY);
+                npc.velocity.add(pushVelocity);
+                
+                // Optional: Add some visual feedback for collision
+                if (window.debugCollisions) {
+                    console.log(`💥 Player pushed NPC: distance=${distance.toFixed(2)}, overlap=${overlap.toFixed(2)}`);
                 }
             }
         }
@@ -764,8 +816,62 @@ export class NPCSystem extends IGameSystem {
                 }
             };
             
+            window.npcCollisions = {
+                toggle: () => this.togglePlayerNPCCollisions(),
+                setRadius: (radius) => this.setCollisionRadius(radius),
+                setPushForce: (force) => this.setPushForce(force),
+                setPushVelocity: (velocity) => this.setPushVelocity(velocity),
+                debug: (enabled) => {
+                    if (enabled) {
+                        this.enableCollisionDebug();
+                    } else {
+                        this.disableCollisionDebug();
+                    }
+                },
+                status: () => {
+                    console.log(`💥 Player-NPC Collision System:`);
+                    console.log(`   Enabled: ${params.PLAYER_NPC_COLLISION_ENABLED}`);
+                    console.log(`   Radius: ${params.PLAYER_NPC_COLLISION_RADIUS}`);
+                    console.log(`   Push Force: ${params.PLAYER_NPC_PUSH_FORCE}`);
+                    console.log(`   Push Velocity: ${params.PLAYER_NPC_PUSH_VELOCITY}`);
+                    console.log(`   Debug: ${window.debugCollisions || false}`);
+                }
+            };
+            
             console.log('🐟 Flocking console helpers available: window.npcFlocking');
+            console.log('💥 Collision console helpers available: window.npcCollisions');
         }
+    }
+
+    // Debug methods for collision system
+    togglePlayerNPCCollisions() {
+        params.PLAYER_NPC_COLLISION_ENABLED = !params.PLAYER_NPC_COLLISION_ENABLED;
+        console.log(`💥 Player-NPC collisions: ${params.PLAYER_NPC_COLLISION_ENABLED ? 'ENABLED' : 'DISABLED'}`);
+    }
+
+    setCollisionRadius(radius) {
+        params.PLAYER_NPC_COLLISION_RADIUS = Math.max(0.1, Math.min(2.0, radius));
+        console.log(`💥 Player-NPC collision radius set to: ${params.PLAYER_NPC_COLLISION_RADIUS}`);
+    }
+
+    setPushForce(force) {
+        params.PLAYER_NPC_PUSH_FORCE = Math.max(0.1, Math.min(5.0, force));
+        console.log(`💥 Player push force set to: ${params.PLAYER_NPC_PUSH_FORCE}`);
+    }
+
+    setPushVelocity(velocity) {
+        params.PLAYER_NPC_PUSH_VELOCITY = Math.max(0.0, Math.min(2.0, velocity));
+        console.log(`💥 Player push velocity set to: ${params.PLAYER_NPC_PUSH_VELOCITY}`);
+    }
+
+    enableCollisionDebug() {
+        window.debugCollisions = true;
+        console.log('💥 Player-NPC collision debugging enabled');
+    }
+
+    disableCollisionDebug() {
+        window.debugCollisions = false;
+        console.log('💥 Player-NPC collision debugging disabled');
     }
 
     // IGameSystem implementation

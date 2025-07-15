@@ -594,6 +594,12 @@ export class PlayerSystem extends IGameSystem {
         return this.normal;
     }
 
+    // Setter for position (used by collision system)
+    setPlayerPosition(newPosition) {
+        this.transform.setPosition(newPosition.x, newPosition.y, newPosition.z);
+        this.normal.copy(newPosition.clone().normalize());
+    }
+
     getDistanceTo(targetPosition) {
         return this.transform.distanceTo({ position: targetPosition });
     }

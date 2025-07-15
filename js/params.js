@@ -120,6 +120,12 @@ export const params = {
     PLAYER_ATTRACTION_FORCE: 0.5,
     PLAYER_REPULSION_FORCE: 10.0,
     
+    // Player-NPC collision system
+    PLAYER_NPC_COLLISION_ENABLED: true,  // Enable/disable physical collisions
+    PLAYER_NPC_COLLISION_RADIUS: 0.8,    // Collision radius multiplier (0.5 = half size overlap allowed)
+    PLAYER_NPC_PUSH_FORCE: 0.3,          // How strong the player pushes NPCs (1.0 = normal)
+    PLAYER_NPC_PUSH_VELOCITY: 0.1,       // How much velocity is added to pushed NPCs
+    
     // Visual settings
     PLANET_TEXTURE_SCALE: 0.5,       // Scale of planet texture (smaller = more detail)
     LIGHTING_INTENSITY: 1.0,         // Ambient lighting intensity
