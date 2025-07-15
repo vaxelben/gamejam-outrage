@@ -13,11 +13,37 @@
             padding: 0;
             background: #000;
             font-family: Arial, sans-serif;
+            
+            /* Disable text selection and user interactions */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            
+            /* Disable text highlighting */
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            
+            /* Disable pull-to-refresh */
+            overscroll-behavior: none;
         }
         #renderCanvas {
             width: 100%;
             height: 100%;
             touch-action: none;
+            
+            /* Disable canvas interactions */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            
+            /* Disable context menu */
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            
+            /* Ensure canvas captures touch events */
+            pointer-events: auto;
         }
         #instructions {
             position: absolute;
@@ -265,7 +291,7 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/gamejam-outrage/assets/index-467421c9.js"></script>
+  <script type="module" crossorigin src="/gamejam-outrage/assets/index-3a6dab09.js"></script>
   <link rel="modulepreload" crossorigin href="/gamejam-outrage/assets/three-06432699.js">
 </head>
 <body>
