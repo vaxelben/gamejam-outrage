@@ -205,6 +205,8 @@ export class NPCSystem extends IGameSystem {
         }
     }
 
+
+
     fixedUpdate(deltaTime) {
         // Update all NPCs' logic
         for (const npc of this.npcs) {
@@ -217,12 +219,56 @@ export class NPCSystem extends IGameSystem {
         // Update group behaviors
         this.updateGroupBehaviors(deltaTime);
         
+        // Check if player is in crowd and update game state
+        this.updatePlayerCrowdStatus();
+        
         // Handle player interactions
         this.handlePlayerInteractions();
         
         // Debug flocking occasionally
         if (window.debugFlocking && Math.random() < 0.01) {
             this.debugFlockingForces(true);
+        }
+    }
+
+    updatePlayerCrowdStatus() {
+        const playerSystem = serviceContainer.resolve('playerSystem');
+        const gameStateSystem = serviceContainer.resolve('gameStateSystem');
+        
+        if (!playerSystem || !gameStateSystem) return;
+        
+        const playerPosition = playerSystem.getPlayerPosition();
+        const playerMask = playerSystem.getCurrentMask();
+        
+        if (!playerPosition || playerMask === null) {
+            // Player is neutral or position unknown - not in crowd
+            gameStateSystem.setInCrowd(false);
+            gameStateSystem.setInWrongCrowd(false);
+            return;
+        }
+        
+        // Count nearby NPCs within crowd detection radius
+        const nearbyNPCs = this.getNearbyNPCsFromPosition(playerPosition, params.CROWD_DETECT_DISTANCE);
+        
+        // Check if player is in a crowd (minimum crowd size)
+        if (nearbyNPCs.length >= params.CROWD_SIZE_MIN) {
+            gameStateSystem.setInCrowd(true);
+            
+            // Check if it's a "wrong" crowd (different mask types)
+            const wrongCrowdNPCs = nearbyNPCs.filter(npc => npc.maskType !== playerMask);
+            const wrongCrowdRatio = wrongCrowdNPCs.length / nearbyNPCs.length;
+            
+            // If majority of crowd has different mask, it's a "wrong" crowd
+            if (wrongCrowdRatio > 0.5) {
+                gameStateSystem.setInWrongCrowd(true);
+                console.log(`🎭 Player in wrong crowd (${wrongCrowdRatio.toFixed(2)} wrong mask ratio) - outrage increasing!`);
+            } else {
+                gameStateSystem.setInWrongCrowd(false);
+                console.log(`🎭 Player in correct crowd (${(1-wrongCrowdRatio).toFixed(2)} correct mask ratio) - outrage stable!`);
+            }
+        } else {
+            gameStateSystem.setInCrowd(false);
+            gameStateSystem.setInWrongCrowd(false);
         }
     }
 
@@ -595,7 +641,16 @@ export class NPCSystem extends IGameSystem {
     getNearbyNPCs(npc, radius) {
         return this.npcs.filter(other => {
             if (other === npc) return false;
+            if (!npc.transform || !other.transform) return false;
             return npc.transform.distanceTo(other.transform) <= radius;
+        });
+    }
+
+    // Helper method to find NPCs near a position (used for player crowd detection)
+    getNearbyNPCsFromPosition(position, radius) {
+        return this.npcs.filter(npc => {
+            if (!npc || !npc.transform) return false;
+            return position.distanceTo(npc.transform.position) <= radius;
         });
     }
 
@@ -897,5 +952,10 @@ export class NPCSystem extends IGameSystem {
         this.groups.clear();
         
         // console.log('👥 NPC System shutdown');
+    }
+
+    // Public method to get all NPCs (for other systems to access)
+    getAllNPCs() {
+        return this.npcs;
     }
 } 

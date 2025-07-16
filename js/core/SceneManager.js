@@ -110,7 +110,7 @@ export class SceneManager {
         const textureLoader = new THREE.TextureLoader();
         
         // Load Earth textures with proper configuration (same as example)
-        const earthDayTexture = textureLoader.load('textures/earth_day_4096.jpg');
+        const earthDayTexture = textureLoader.load('textures/planet_color.jpg');
         earthDayTexture.colorSpace = THREE.SRGBColorSpace;
         earthDayTexture.anisotropy = 8;
         // No repeat wrapping - use default ClampToEdgeWrapping like example
@@ -263,7 +263,7 @@ export class SceneManager {
             atmosphereOpacity: params.PLANET_OUTER_OPACITY,
             textureMapping: 'Natural UV mapping (no repeat) - prevents polar distortion',
             atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg (BackSide)',
-            surfaceTexture: 'earth_day_4096.jpg (FrontSide)',
+            surfaceTexture: 'planet_color.jpg (FrontSide)',
             materialParameters: {
                 roughnessLow: roughnessLow,
                 roughnessHigh: roughnessHigh,
@@ -527,6 +527,11 @@ export class SceneManager {
             const playerNormal = playerPosition.clone().normalize();
             const cameraOffset = playerNormal.clone().multiplyScalar(params.CAMERA_DISTANCE);
             const cameraPosition = playerPosition.clone().add(cameraOffset);
+            
+            // Apply camera shake if available
+            if (this.cameraShakeOffset) {
+                cameraPosition.add(this.cameraShakeOffset);
+            }
             
             this.camera.position.copy(cameraPosition);
             this.camera.lookAt(playerPosition);
@@ -946,7 +951,7 @@ export class SceneManager {
                 bumpScale: surfaceMaterial?.bumpScale || 'N/A',
                 metalness: surfaceMaterial?.metalness || 'N/A',
                 transparent: surfaceMaterial?.transparent || false,
-                texture: 'earth_day_4096.jpg',
+                texture: 'planet_color.jpg',
                 roughnessTexture: 'earth_bump_roughness_clouds_4096.jpg',
                 features: ['Dynamic roughness mapping', 'Cloud-surface blending', 'Multi-channel texturing']
             },
@@ -1045,7 +1050,7 @@ export class SceneManager {
             surfaceRenderOrder: this.innerPlanet?.renderOrder || 'N/A',
             textureMapping: 'Natural UV mapping (no repeat)',
             atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg',
-            surfaceTexture: 'earth_day_4096.jpg',
+            surfaceTexture: 'planet_color.jpg',
             uvMapping: 'Standard spherical UV without distortion'
         };
     }

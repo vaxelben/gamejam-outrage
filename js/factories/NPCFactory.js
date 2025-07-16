@@ -316,6 +316,43 @@ export class NPCFactory {
     }
 }
 
+// Police NPC creator
+function createPoliceNPC(config) {
+    const npc = createBasicNPC(config);
+    
+    // Police properties
+    npc.isPolice = true;
+    npc.maskType = 'police'; // Special mask type for police
+    npc.speedMultiplier = params.POLICE_SPEED_MULTIPLIER || 1.3; // Store the multiplier, not the final speed
+    npc.detectionRadius = params.POLICE_CATCH_DISTANCE || 2;
+    npc.damageRate = 10; // Damage per second when near player
+    npc.pursuitTarget = null;
+    npc.state = 'PURSUING';
+    
+    // Police don't follow normal NPC behaviors
+    npc.groupInfluence = 0;
+    npc.personality = {
+        curiosity: 0,
+        energy: 1,
+        aggressiveness: 1,
+        sociability: 0
+    };
+    
+    // Update renderer with police texture
+    if (npc.renderer && npc.renderer.mesh) {
+        const textureLoader = new THREE.TextureLoader();
+        const policeTexture = textureLoader.load('textures/sprites/police_fbi.png');
+        npc.renderer.mesh.material.map = policeTexture;
+        npc.renderer.mesh.material.needsUpdate = true;
+        
+        // Make police slightly larger
+        npc.renderer.mesh.scale.setScalar(1.2);
+    }
+    
+    console.log(`🚔 Police NPC created with speedMultiplier: ${npc.speedMultiplier}`);
+    return npc;
+}
+
 // Register default NPC types
 registerNPCType('basic', createBasicNPC);
 registerNPCType('generic', createBasicNPC);
@@ -323,6 +360,7 @@ registerNPCType('civilian', createBasicNPC);
 registerNPCType('advanced', createAdvancedNPC);
 registerNPCType('leader', createLeaderNPC);
 registerNPCType('follower', createFollowerNPC);
+registerNPCType('police', createPoliceNPC);
 
 // Export for easy extension
-export { createBasicNPC, createAdvancedNPC, getColorForMask, getTextureForMask }; 
+export { createBasicNPC, createAdvancedNPC, createPoliceNPC, getColorForMask, getTextureForMask }; 

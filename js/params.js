@@ -13,7 +13,7 @@ export const params = {
     PLAYER_SIZE: 1.0,
     
     // Camera settings
-    CAMERA_DISTANCE: 10,
+    CAMERA_DISTANCE: 20,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Scene appearance
@@ -45,9 +45,9 @@ export const params = {
     },
 
     // Outrage system
-    OUTRAGE_INCREASE_RATE: 0.1,    // Per second in wrong crowd
-    OUTRAGE_DECAY_RATE: 0.05,        // Per second when not in crowd
-    OUTRAGE_POLICE_THRESHOLD: 90, // % to spawn police
+    OUTRAGE_INCREASE_RATE: 5.0,    // Per second in wrong crowd
+    OUTRAGE_DECAY_RATE: 1.0,        // Per second when not in crowd
+    OUTRAGE_POLICE_THRESHOLD: 10, // % to spawn police
     
     // Energy system
     ENERGY_DEPLETION_RATE: 2,    // Per second when wearing mask
@@ -62,9 +62,25 @@ export const params = {
     CROWD_KICKOUT_TIME: 30,       // Seconds before kickout
     
     // Police system
-    POLICE_SPEED_MULTIPLIER: 1.3, // Relative to player speed
+    POLICE_SPEED_MULTIPLIER: 0.8, // Relative to player speed
     POLICE_CATCH_DISTANCE: 2,     // Distance to catch player
     POLICE_RETREAT_DISTANCE: 25,  // Distance to retreat when outrage low
+    POLICE_COLLISION_ENABLED: true,  // Enable/disable police collision system
+    POLICE_NPC_PUSH_RATIO: 0.7,     // How much NPCs are pushed by police (0-1)
+    POLICE_FORCE_RATIO: 0.3,        // How much police are pushed back (0-1)
+    
+    // Visual effects system
+    VISUAL_FX_ENABLED: true,         // Enable/disable visual effects
+    CAMERA_SHAKE_ENABLED: true,      // Enable/disable camera shake
+    CAMERA_SHAKE_INTENSITY: 0.15,    // Base camera shake intensity
+    CAMERA_SHAKE_FREQUENCY: 25,      // Camera shake frequency (Hz)
+    CAMERA_SHAKE_DURATION: 0.5,     // Camera shake duration (seconds)
+    TENSION_EFFECTS_ENABLED: true,   // Enable/disable tension effects
+    TENSION_MAX_INTENSITY: 0.8,     // Maximum tension effect intensity
+    TENSION_TRANSITION_SPEED: 2.0,  // Speed of tension effect transitions
+    TENSION_COLOR_SHIFT: 0.2,       // Amount of color shift during tension
+    TENSION_PULSE_SPEED: 3.0,       // Speed of pulsing effects
+    OVERLAY_EFFECTS_ENABLED: true,  // Enable/disable overlay effects
     
     // Score system
     SCORE_ALPHA: 1.0,             // Multiplier for survival time

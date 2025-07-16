@@ -26,6 +26,7 @@ export class GameStateSystem extends IGameSystem {
         
         // Player status
         this.inCrowd = false;       // Whether player is in a crowd
+        this.inWrongCrowd = false;  // Whether player is in a wrong crowd (different mask majority)
         this.isBeingChased = false; // Whether police is chasing
         
         // Event throttling to prevent spam
@@ -56,10 +57,15 @@ export class GameStateSystem extends IGameSystem {
             }
         } */
         
-        // Outrage decay when not in crowd
-        if (!this.inCrowd) {
+        // Outrage management based on crowd status
+        if (this.inWrongCrowd) {
+            // Increase outrage when in wrong crowd
+            this.addOutrage(params.OUTRAGE_INCREASE_RATE * deltaTime);
+        } else if (!this.inCrowd) {
+            // Decay outrage when not in crowd
             this.addOutrage(-params.OUTRAGE_DECAY_RATE * deltaTime);
         }
+        // Note: No outrage change when in correct crowd (inCrowd && !inWrongCrowd)
         
         // Update win condition timers
         this.updateWinConditionTimers(deltaTime);
@@ -138,6 +144,10 @@ export class GameStateSystem extends IGameSystem {
         }
     }
 
+    decreaseEnergy(amount) {
+        this.addEnergy(-amount);
+    }
+
     setMask(maskType) {
         const oldMask = this.currentMask;
         this.currentMask = maskType;
@@ -164,10 +174,28 @@ export class GameStateSystem extends IGameSystem {
         this.publishEvent(GameEventTypes.GAME_STATE_CHANGE, stateChangeData);
     }
 
+    // Helper method to notify about state changes
+    notifyStateChange(property, newValue, oldValue, metadata = {}) {
+        const stateChangeData = EventDataFactory.gameStateChange(
+            property,
+            oldValue,
+            newValue,
+            metadata
+        );
+        this.publishEvent(GameEventTypes.GAME_STATE_CHANGE, stateChangeData);
+    }
+
     setInCrowd(inCrowd) {
         if (this.inCrowd !== inCrowd) {
             this.inCrowd = inCrowd;
             this.notifyStateChange('inCrowd', inCrowd, !inCrowd);
+        }
+    }
+
+    setInWrongCrowd(inWrongCrowd) {
+        if (this.inWrongCrowd !== inWrongCrowd) {
+            this.inWrongCrowd = inWrongCrowd;
+            this.notifyStateChange('inWrongCrowd', inWrongCrowd, !inWrongCrowd);
         }
     }
 
@@ -204,6 +232,7 @@ export class GameStateSystem extends IGameSystem {
         this.adultTimer = 0;
         this.chaosTimer = 0;
         this.inCrowd = false;
+        this.inWrongCrowd = false;
         this.isBeingChased = false;
         
         this.notifyStateChange('reset', this.getFullState(), oldState);
@@ -245,7 +274,7 @@ export class GameStateSystem extends IGameSystem {
 
     // State queries
     canReturnToNeutral() {
-        return !this.isBeingChased && !this.inCrowd;
+        return !this.isBeingChased && !this.inWrongCrowd;
     }
 
     getFullState() {
@@ -259,6 +288,7 @@ export class GameStateSystem extends IGameSystem {
             adultTimer: this.adultTimer,
             chaosTimer: this.chaosTimer,
             inCrowd: this.inCrowd,
+            inWrongCrowd: this.inWrongCrowd,
             isBeingChased: this.isBeingChased,
             score: this.getScore()
         };
