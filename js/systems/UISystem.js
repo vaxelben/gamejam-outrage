@@ -196,6 +196,39 @@ export class UISystem extends IGameSystem {
             bottom: 0;
         `;
         
+        // Create police threshold marker
+        const policeThresholdMarker = document.createElement('div');
+        const thresholdPosition = params.OUTRAGE_POLICE_THRESHOLD; // Get threshold from params
+        policeThresholdMarker.style.cssText = `
+            position: absolute;
+            bottom: ${thresholdPosition}%;
+            left: -2px;
+            right: -2px;
+            height: 2px;
+            background: #ff0000;
+            border-radius: 1px;
+            box-shadow: 0 0 4px rgba(255, 0, 0, 0.8);
+            z-index: 10;
+        `;
+        
+        // Create police threshold label
+        const policeThresholdLabel = document.createElement('div');
+        policeThresholdLabel.style.cssText = `
+            position: absolute;
+            bottom: ${thresholdPosition}%;
+            left: 25px;
+            transform: translateY(50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            white-space: nowrap;
+            z-index: 10;
+        `;
+        policeThresholdLabel.textContent = `🚔 ${thresholdPosition}%`;
+        
         const outrageText = document.createElement('div');
         outrageText.id = 'outrage-text';
         outrageText.style.cssText = `
@@ -208,6 +241,8 @@ export class UISystem extends IGameSystem {
         outrageText.textContent = '0%';
         
         outrageContainer.appendChild(outrageFill);
+        outrageContainer.appendChild(policeThresholdMarker);
+        outrageContainer.appendChild(policeThresholdLabel);
         this.elements.outrageBar.appendChild(outrageLabel);
         this.elements.outrageBar.appendChild(outrageContainer);
         this.elements.outrageBar.appendChild(outrageText);

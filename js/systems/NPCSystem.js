@@ -38,17 +38,22 @@ export class NPCSystem extends IGameSystem {
     }
 
     createNPCGroups() {
-        // Create groups for each mask type
+        // Create groups for each mask type with optimized positioning
+        const groupPositions = this.generateOptimizedGroupPositions();
+        
         for (let maskType = 1; maskType <= 7; maskType++) {
-            const group = this.createGroup(maskType);
+            const group = this.createGroup(maskType, groupPositions[maskType - 1]);
             this.groups.set(maskType, group);
-            console.log(`Created group ${maskType} with ${group.npcs.length} NPCs`);
+            console.log(`Created group ${maskType} with ${group.npcs.length} NPCs at position (${group.spawnCenter.x.toFixed(1)}, ${group.spawnCenter.y.toFixed(1)}, ${group.spawnCenter.z.toFixed(1)})`);
         }
+        
+        // Log distribution quality
+        this.logGroupDistributionQuality(groupPositions);
     }
 
-    createGroup(maskType) {
+    createGroup(maskType, predefinedPosition = null) {
         // Generate a specific spawn area for this group
-        const groupSpawnCenter = this.generateGroupSpawnPosition(maskType);
+        const groupSpawnCenter = predefinedPosition || this.generateGroupSpawnPosition(maskType);
         const groupSpawnRadius = 3; // Radius of the spawn zone for the group
         
         const group = {
@@ -623,12 +628,29 @@ export class NPCSystem extends IGameSystem {
 
     generateGroupSpawnPosition(maskType) {
         // Generate specific spawn zones for each group around the planet
-        // Each group gets a section of the planet surface
-        const groupAngle = (maskType - 1) * (Math.PI * 2 / 7); // 7 groups evenly distributed
-        const latitudeVariation = (Math.random() - 0.5) * Math.PI * 0.3; // Some vertical variation
+        // Using optimized sphere distribution for better coverage
         
-        const theta = groupAngle + (Math.random() - 0.5) * 0.5; // Small random offset
-        const phi = Math.PI / 2 + latitudeVariation; // Around equator with variation
+        // Predefined optimized positions for 7 groups using spiral distribution
+        // This ensures maximum separation and even coverage of the sphere
+        const optimizedPositions = [
+            { theta: 0, phi: 0 },                    // Group 1: North pole
+            { theta: 0, phi: Math.PI },              // Group 2: South pole
+            { theta: 0, phi: Math.PI * 0.5 },        // Group 3: Equator 0°
+            { theta: Math.PI * 0.67, phi: Math.PI * 0.5 }, // Group 4: Equator 120°
+            { theta: Math.PI * 1.33, phi: Math.PI * 0.5 }, // Group 5: Equator 240°
+            { theta: Math.PI * 0.33, phi: Math.PI * 0.25 }, // Group 6: Northern hemisphere
+            { theta: Math.PI * 1.67, phi: Math.PI * 0.75 }  // Group 7: Southern hemisphere
+        ];
+        
+        // Get the predefined position for this group
+        const basePosition = optimizedPositions[maskType - 1];
+        
+        // Add small random variation to avoid perfect symmetry (max ±15°)
+        const thetaVariation = (Math.random() - 0.5) * 0.26; // ±15° in radians
+        const phiVariation = (Math.random() - 0.5) * 0.26;
+        
+        const theta = basePosition.theta + thetaVariation;
+        const phi = Math.max(0.1, Math.min(Math.PI - 0.1, basePosition.phi + phiVariation));
         const radius = this.planetRadius + params.NPC_SIZE / 2;
         
         return new THREE.Vector3(
@@ -636,6 +658,119 @@ export class NPCSystem extends IGameSystem {
             radius * Math.cos(phi),
             radius * Math.sin(phi) * Math.sin(theta)
         );
+    }
+
+    generateOptimizedGroupPositions() {
+        // Generate all group positions and optimize them for better distribution
+        const positions = [];
+        
+        // Generate initial positions
+        for (let maskType = 1; maskType <= 7; maskType++) {
+            positions.push(this.generateGroupSpawnPosition(maskType));
+        }
+        
+        // Optimize positions to avoid clustering
+        this.optimizeGroupPositions(positions);
+        
+        return positions;
+    }
+
+    optimizeGroupPositions(positions) {
+        // Apply force-based optimization to spread groups more evenly
+        const minDistance = 8; // Minimum distance between group centers
+        const iterations = 50; // Number of optimization iterations
+        
+        for (let iter = 0; iter < iterations; iter++) {
+            let totalForce = 0;
+            
+            for (let i = 0; i < positions.length; i++) {
+                const force = new THREE.Vector3();
+                
+                for (let j = 0; j < positions.length; j++) {
+                    if (i !== j) {
+                        const distance = positions[i].distanceTo(positions[j]);
+                        if (distance < minDistance) {
+                            // Calculate repulsion force
+                            const repulsion = new THREE.Vector3()
+                                .subVectors(positions[i], positions[j])
+                                .normalize()
+                                .multiplyScalar(minDistance - distance);
+                            
+                            force.add(repulsion);
+                        }
+                    }
+                }
+                
+                // Apply force and re-project to sphere surface
+                if (force.length() > 0) {
+                    positions[i].add(force.multiplyScalar(0.1));
+                    positions[i].normalize().multiplyScalar(this.planetRadius + params.NPC_SIZE / 2);
+                    totalForce += force.length();
+                }
+            }
+            
+            // Early termination if forces are small
+            if (totalForce < 0.1) break;
+        }
+    }
+
+    logGroupDistributionQuality(positions) {
+        // Calculate and log distribution quality metrics
+        let minDistance = Infinity;
+        let maxDistance = 0;
+        let totalDistance = 0;
+        let comparisons = 0;
+        
+        for (let i = 0; i < positions.length; i++) {
+            for (let j = i + 1; j < positions.length; j++) {
+                const distance = positions[i].distanceTo(positions[j]);
+                minDistance = Math.min(minDistance, distance);
+                maxDistance = Math.max(maxDistance, distance);
+                totalDistance += distance;
+                comparisons++;
+            }
+        }
+        
+        const avgDistance = totalDistance / comparisons;
+        const uniformity = (minDistance / maxDistance) * 100;
+        
+        console.log(`🎯 Group Distribution Quality:`);
+        console.log(`   • Average distance: ${avgDistance.toFixed(1)} units`);
+        console.log(`   • Min distance: ${minDistance.toFixed(1)} units`);
+        console.log(`   • Max distance: ${maxDistance.toFixed(1)} units`);
+        console.log(`   • Uniformity: ${uniformity.toFixed(1)}% (higher is better)`);
+        
+        // Coverage analysis
+        const coverageAnalysis = this.analyzeSphereCoverage(positions);
+        console.log(`   • Sphere coverage: ${coverageAnalysis.coverage.toFixed(1)}%`);
+        console.log(`   • Hemispheric balance: ${coverageAnalysis.hemisphericBalance.toFixed(1)}%`);
+    }
+
+    analyzeSphereCoverage(positions) {
+        // Analyze how well the positions cover the sphere
+        let northernHemisphere = 0;
+        let southernHemisphere = 0;
+        
+        for (const pos of positions) {
+            if (pos.y >= 0) {
+                northernHemisphere++;
+            } else {
+                southernHemisphere++;
+            }
+        }
+        
+        const hemisphericBalance = Math.min(northernHemisphere, southernHemisphere) / 
+                                  Math.max(northernHemisphere, southernHemisphere) * 100;
+        
+        // Simple coverage estimation (could be improved with more sophisticated methods)
+        const coverage = Math.min(100, positions.length / 7 * 85); // Heuristic estimation
+        
+        return {
+            coverage,
+            hemisphericBalance,
+            northernGroups: northernHemisphere,
+            southernGroups: southernHemisphere
+        };
     }
 
     getNearbyNPCs(npc, radius) {
@@ -895,6 +1030,28 @@ export class NPCSystem extends IGameSystem {
             
             console.log('🐟 Flocking console helpers available: window.npcFlocking');
             console.log('💥 Collision console helpers available: window.npcCollisions');
+            
+            // Group distribution helpers
+            window.npcDistribution = {
+                analyze: () => {
+                    const positions = Array.from(this.groups.values()).map(group => group.spawnCenter);
+                    this.logGroupDistributionQuality(positions);
+                },
+                regenerate: () => {
+                    console.log('🔄 Regenerating group positions...');
+                    this.createNPCGroups();
+                    console.log('✅ Groups regenerated with new positions');
+                },
+                visualize: () => {
+                    console.log('📍 Current group positions:');
+                    for (const [maskType, group] of this.groups.entries()) {
+                        const pos = group.spawnCenter;
+                        console.log(`   Group ${maskType}: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`);
+                    }
+                }
+            };
+            
+            console.log('📍 Group distribution helpers available: window.npcDistribution');
         }
     }
 

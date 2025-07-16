@@ -10,10 +10,10 @@ export const params = {
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 0.5,
+    PLAYER_SIZE: 0.9,
     
     // Camera settings
-    CAMERA_DISTANCE: 4,
+    CAMERA_DISTANCE: 14,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Scene appearance
@@ -47,7 +47,7 @@ export const params = {
     // Outrage system
     OUTRAGE_INCREASE_RATE: 5.0,    // Per second in wrong crowd
     OUTRAGE_DECAY_RATE: 1.0,        // Per second when not in crowd
-    OUTRAGE_POLICE_THRESHOLD: 10, // % to spawn police
+    OUTRAGE_POLICE_THRESHOLD: 70, // % to spawn police
     
     // Energy system
     ENERGY_DEPLETION_RATE: 2,    // Per second when wearing mask
@@ -93,8 +93,8 @@ export const params = {
     CHAOS_TIME_REQUIRED: 30,      // 30 seconds
     
     // NPC system parameters
-    NPC_SIZE: 0.5,                   // Size of individual NPCs
-    NPC_GROUP_SIZE: 20,              // Number of NPCs per group
+    NPC_SIZE: 0.9,                   // Size of individual NPCs
+    NPC_GROUP_SIZE: 40,              // Number of NPCs per group
     NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
     NPC_SPEED_VARIATION: 8,
     NPC_INTERACTION_RADIUS: 1.5,       // Distance for NPC-player interaction
@@ -114,7 +114,7 @@ export const params = {
     NPC_SEPARATION_FORCE: 2.0,       // Force to avoid crowding (separation)
     NPC_ALIGNMENT_FORCE: 2.0,        // Force to align with neighbors (alignment)
     NPC_COHESION_FORCE: 5.0,         // Force to move toward group center (cohesion)
-    NPC_SEPARATION_RADIUS: 3.0,      // Distance for separation behavior
+    NPC_SEPARATION_RADIUS: 5.0,      // Distance for separation behavior
     NPC_ALIGNMENT_RADIUS: 6.0,       // Distance for alignment behavior
     NPC_COHESION_RADIUS: 8.0,        // Distance for cohesion behavior
     NPC_MAX_FORCE: 4.0,              // Maximum force that can be applied
