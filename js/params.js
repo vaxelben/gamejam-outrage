@@ -10,10 +10,10 @@ export const params = {
     
     // Player movement
     PLAYER_SPEED: 20,
-    PLAYER_SIZE: 1.0,
+    PLAYER_SIZE: 0.5,
     
     // Camera settings
-    CAMERA_DISTANCE: 20,
+    CAMERA_DISTANCE: 4,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Scene appearance
@@ -72,8 +72,8 @@ export const params = {
     // Visual effects system
     VISUAL_FX_ENABLED: true,         // Enable/disable visual effects
     CAMERA_SHAKE_ENABLED: true,      // Enable/disable camera shake
-    CAMERA_SHAKE_INTENSITY: 0.15,    // Base camera shake intensity
-    CAMERA_SHAKE_FREQUENCY: 25,      // Camera shake frequency (Hz)
+    CAMERA_SHAKE_INTENSITY: 0.01,    // Base camera shake intensity
+    CAMERA_SHAKE_FREQUENCY: 60,      // Camera shake frequency (Hz)
     CAMERA_SHAKE_DURATION: 0.5,     // Camera shake duration (seconds)
     TENSION_EFFECTS_ENABLED: true,   // Enable/disable tension effects
     TENSION_MAX_INTENSITY: 0.8,     // Maximum tension effect intensity
@@ -93,7 +93,7 @@ export const params = {
     CHAOS_TIME_REQUIRED: 30,      // 30 seconds
     
     // NPC system parameters
-    NPC_SIZE: 1.0,                   // Size of individual NPCs
+    NPC_SIZE: 0.5,                   // Size of individual NPCs
     NPC_GROUP_SIZE: 20,              // Number of NPCs per group
     NPC_BASE_SPEED: 2,               // Base movement speed for NPCs
     NPC_SPEED_VARIATION: 8,
