@@ -184,8 +184,12 @@ export function initTweakpane() {
     pane = new Pane({ 
         title: 'Déplacement Instantané ZQSD', 
         expanded: false,
-        width: 350
+        width: 350,
+        hidden: true
     });
+    
+    // Add a note about how to show the panel
+    console.log('🎛️ Tweakpane hidden by default - Press F2 to toggle visibility');
     
     // Affichage des touches actives
     pane.addBlade({
@@ -286,6 +290,14 @@ export function initTweakpane() {
     });
     
     console.log('🎛️ Tweakpane initialized - Déplacement instantané ZQSD');
+}
+
+// Function to toggle Tweakpane visibility
+export function toggleTweakpane() {
+    if (pane) {
+        pane.hidden = !pane.hidden;
+        console.log(`🎛️ Tweakpane ${pane.hidden ? 'hidden' : 'visible'}`);
+    }
 }
 
 // Fonction pour mettre à jour les données de déplacement

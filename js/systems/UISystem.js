@@ -304,7 +304,7 @@ export class UISystem extends IGameSystem {
             pointer-events: auto;
             z-index: 10000;
             max-width: ${isMobile ? '100vw' : '900px'};
-            width: ${isMobile ? 'calc(100vw - 10px)' : 'auto'};
+            width: ${isMobile ? 'calc(100vw - 20px)' : 'auto'};
             flex-wrap: wrap;
             justify-content: center;
             touch-action: manipulation;
@@ -344,10 +344,10 @@ export class UISystem extends IGameSystem {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
         
         button.style.cssText = `
-            width: ${isMobile ? 'calc((100vw - 70px) / 8)' : '80px'};
+            width: ${isMobile ? 'calc((100vw - 60px) / 8)' : '80px'};
             height: ${isMobile ? '38px' : '60px'};
             min-width: ${isMobile ? '35px' : '80px'};
-            max-width: ${isMobile ? '55px' : 'none'};
+            max-width: ${isMobile ? 'calc((100vw - 60px) / 8)' : 'none'};
             background: ${color || 'rgba(80, 80, 80, 0.7)'};
             border: ${isMobile ? '1px solid #fff' : '2px solid #fff'};
             border-radius: ${isMobile ? '6px' : '10px'};
@@ -375,8 +375,8 @@ export class UISystem extends IGameSystem {
                 const spriteImg = document.createElement('img');
                 spriteImg.src = getTextureForMask(maskIndex + 1);
                 spriteImg.style.cssText = `
-                    width: ${isMobile ? '24px' : '30px'};
-                    height: ${isMobile ? '24px' : '30px'};
+                    width: ${isMobile ? '20px' : '30px'};
+                    height: ${isMobile ? '20px' : '30px'};
                     object-fit: contain;
                     margin-bottom: ${isMobile ? '2px' : '3px'};
                 `;
@@ -390,7 +390,7 @@ export class UISystem extends IGameSystem {
             font-weight: bold;
             color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-            font-size: ${isMobile ? '7px' : '9px'};
+            font-size: ${isMobile ? '6px' : '9px'};
             text-align: center;
             line-height: 1.0;
             max-width: ${isMobile ? '95%' : '75px'};

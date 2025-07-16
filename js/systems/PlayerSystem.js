@@ -2,7 +2,7 @@
 import { IGameSystem } from '../interfaces/IGameSystem.js';
 import { Transform } from '../components/Transform.js';
 import { Renderer } from '../components/Renderer.js';
-import { params } from '../params.js';
+import { params, toggleTweakpane, playerMovementData } from '../params.js';
 import { serviceContainer } from '../core/ServiceContainer.js';
 
 export class PlayerSystem extends IGameSystem {
@@ -296,73 +296,15 @@ export class PlayerSystem extends IGameSystem {
             <strong>ZQSD</strong> - Move player<br>
             <strong>H</strong> - Toggle axis/camera HUD<br>
             <strong>F1</strong> - Toggle debug info<br>
+            <strong>F2</strong> - Toggle Tweakpane<br>
             <strong>1-7</strong> - Switch masks<br>
             <strong>ESC</strong> - Return to neutral
         `;
         
         // document.body.appendChild(instructions);
-        
-        // Create touch controls overlay for mobile
-        if (this.inputManager.isMobileDevice()) {
-            this.createTouchControlsOverlay();
-        }
     }
 
-    createTouchControlsOverlay() {
-        const touchOverlay = document.createElement('div');
-        touchOverlay.id = 'touch-controls-overlay';
-        touchOverlay.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            z-index: 1001;
-            pointer-events: none;
-        `;
-        touchOverlay.innerHTML = '📱';
-        
-        document.body.appendChild(touchOverlay);
-        
-        // Add visual feedback for touch controls
-        const touchIndicator = document.createElement('div');
-        touchIndicator.style.cssText = `
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            color: white;
-            font-size: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px;
-            border-radius: 5px;
-            z-index: 1001;
-            display: none;
-        `;
-        touchIndicator.textContent = 'Touch & drag to move';
-        
-        document.body.appendChild(touchIndicator);
-        
-        // Show/hide touch indicator based on touch activity
-        const updateTouchIndicator = () => {
-            if (this.inputManager.isTouchActive()) {
-                touchIndicator.style.display = 'block';
-                const movement = this.inputManager.getTouchMovement();
-                touchIndicator.textContent = `Touch: x=${movement.x.toFixed(2)}, y=${movement.y.toFixed(2)}`;
-            } else {
-                touchIndicator.style.display = 'none';
-            }
-        };
-        
-        // Update indicator periodically
-        setInterval(updateTouchIndicator, 100);
-    }
+
 
     updateDebugUI(debugInfo) {
         if (!this.debugUI || !this.showDebugUI) return;
@@ -406,6 +348,10 @@ export class PlayerSystem extends IGameSystem {
             case 'f1':
                 // Toggle debug UI
                 this.toggleDebugUI();
+                break;
+            case 'f2':
+                // Toggle Tweakpane visibility
+                toggleTweakpane();
                 break;
             case '1':
             case '2':
