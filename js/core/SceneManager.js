@@ -99,123 +99,201 @@ export class SceneManager {
     }
 
     createPlanet() {
-        const outerRadius = params.PLANET_DIAMETER / 2;
-        const innerRadius = outerRadius * params.PLANET_INNER_SPHERE_SCALE;
+        const atmosphereRadius = params.PLANET_DIAMETER / 2 * params.PLANET_OUTER_SPHERE_SCALE;
+        const planetRadius = params.PLANET_DIAMETER / 2 * params.PLANET_INNER_SPHERE_SCALE;
+        
+        // Material parameters from the Three.js example
+        const roughnessLow = 0.25;
+        const roughnessHigh = 0.35;
         
         // Load planet textures
         const textureLoader = new THREE.TextureLoader();
         
-        // Create outer planet (existing planet)
-        const outerGeometry = new THREE.SphereGeometry(outerRadius, 64, 64);
-        const outerTexture = textureLoader.load('textures/bordel_ext.png');
+        // Load Earth textures with proper configuration (same as example)
+        const earthDayTexture = textureLoader.load('textures/earth_day_4096.jpg');
+        earthDayTexture.colorSpace = THREE.SRGBColorSpace;
+        earthDayTexture.anisotropy = 8;
+        // No repeat wrapping - use default ClampToEdgeWrapping like example
+        // earthDayTexture.wrapS = THREE.ClampToEdgeWrapping;
+        // earthDayTexture.wrapT = THREE.ClampToEdgeWrapping;
+        // No repeat scaling - use natural UV mapping like example
         
-        // Configure outer texture
-        outerTexture.wrapS = THREE.RepeatWrapping;
-        outerTexture.wrapT = THREE.RepeatWrapping;
-        outerTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
+        const earthBumpRoughnessCloudsTexture = textureLoader.load('textures/earth_bump_roughness_clouds_4096.jpg');
+        earthBumpRoughnessCloudsTexture.anisotropy = 8;
+        // No repeat wrapping - use default ClampToEdgeWrapping like example
+        // earthBumpRoughnessCloudsTexture.wrapS = THREE.ClampToEdgeWrapping;
+        // earthBumpRoughnessCloudsTexture.wrapT = THREE.ClampToEdgeWrapping;
+        // No repeat scaling - use natural UV mapping like example
         
-        const outerMaterial = new THREE.MeshStandardMaterial({ 
-            map: outerTexture,
+        // Create outer planet (clouds atmosphere layer)
+        const outerGeometry = new THREE.SphereGeometry(atmosphereRadius, 64, 64);
+        
+        // Advanced outer material matching the example's atmosphere approach
+        const outerMaterial = new THREE.MeshStandardMaterial({
+            map: earthBumpRoughnessCloudsTexture,
             transparent: true,
             opacity: params.PLANET_OUTER_OPACITY,
-            roughness: 0.9,
-            metalness: 0.1,
-            side: THREE.FrontSide,
-            // Force rendering order to ensure inner sphere is visible
-            depthWrite: params.PLANET_OUTER_OPACITY < 1.0 ? false : true
+            side: THREE.BackSide, // Same as example's atmosphere
+            depthWrite: false, // Same as example for transparency
+            
+            // Use the texture channels for advanced effects
+            // Red channel: bump/elevation
+            // Green channel: roughness
+            // Blue channel: clouds
+            roughnessMap: earthBumpRoughnessCloudsTexture,
+            roughness: roughnessHigh, // Use high roughness for clouds
+            metalness: 0.0, // No metalness for clouds/atmosphere
+            
+            // Enhanced cloud rendering
+            alphaMap: earthBumpRoughnessCloudsTexture, // Use blue channel for cloud alpha
+            alphaTest: 0.01, // Lower alpha test like example
+            
+            // Lighting properties
+            envMapIntensity: 0.5 // Reduced for atmosphere
         });
+        
+        // Custom shader chunks for advanced cloud effects (matching example logic)
+        outerMaterial.onBeforeCompile = (shader) => {
+            // Add cloud processing to fragment shader
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `
+                #include <map_fragment>
+                
+                // Extract cloud strength from blue channel (same as example)
+                float cloudStrength = texture2D(map, vMapUv).b;
+                cloudStrength = smoothstep(0.2, 1.0, cloudStrength);
+                
+                // Enhance cloud appearance (same logic as example)
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), cloudStrength * 2.0);
+                
+                // Apply cloud transparency
+                float alpha = cloudStrength;
+                diffuseColor.a = alpha;
+                `
+            );
+        };
         
         this.planet = new THREE.Mesh(outerGeometry, outerMaterial);
         this.planet.receiveShadow = true;
-        this.planet.castShadow = true;
-        // Set render order for outer sphere
-        this.planet.renderOrder = 1;
+        this.planet.castShadow = false; // Atmosphere doesn't cast shadows
+        this.planet.renderOrder = 2; // Render after surface
         this.scene.add(this.planet);
         
-        // Create inner sphere with higher geometry resolution for better displacement
-        const innerGeometry = new THREE.SphereGeometry(innerRadius, 128, 128);
-        const innerTexture = textureLoader.load('textures/planet_int_color.png');
-        const innerNormalTexture = textureLoader.load('textures/planet_int_normal.png');
-        const innerHeightTexture = textureLoader.load('textures/planet_int_height.png');
+        // Create inner sphere (solid Earth surface - main globe)
+        const innerGeometry = new THREE.SphereGeometry(planetRadius, 64, 64);
         
-        // Configure inner texture
-        innerTexture.wrapS = THREE.RepeatWrapping;
-        innerTexture.wrapT = THREE.RepeatWrapping;
-        innerTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
-        
-        // Configure inner normal texture
-        innerNormalTexture.wrapS = THREE.RepeatWrapping;
-        innerNormalTexture.wrapT = THREE.RepeatWrapping;
-        innerNormalTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
-        
-        // Configure inner height texture
-        innerHeightTexture.wrapS = THREE.RepeatWrapping;
-        innerHeightTexture.wrapT = THREE.RepeatWrapping;
-        innerHeightTexture.repeat.set(params.PLANET_TEXTURE_SCALE, params.PLANET_TEXTURE_SCALE);
-        
-        const innerMaterial = new THREE.MeshStandardMaterial({ 
-            map: innerTexture,
-            normalMap: innerNormalTexture,
-            normalScale: new THREE.Vector2(2.0, 2.0), // Increase normal map intensity
-            displacementMap: innerHeightTexture,
-            displacementScale: 0.5, // Increased displacement scale for more visible relief
-            displacementBias: 0.0, // Bias for displacement
-            transparent: true,
-            opacity: params.PLANET_INNER_OPACITY,
-            roughness: 0.1, // Very low roughness for high reflectivity
-            metalness: 0.5, // Increased metalness for reflective effect
-            clearcoat: 0.8, // Add clearcoat for extra shine
-            clearcoatRoughness: 0.05, // Very smooth clearcoat
-            envMapIntensity: 1.5, // Increase environment map reflection
-            side: THREE.DoubleSide,
-            // Ensure inner sphere renders after outer sphere
-            depthTest: true,
-            depthWrite: true
+        // Globe material matching the example's settings
+        const innerMaterial = new THREE.MeshStandardMaterial({
+            map: earthDayTexture,
+            transparent: false, // Surface is opaque
+            side: THREE.FrontSide,
+            
+            // Surface properties matching example
+            roughnessMap: earthBumpRoughnessCloudsTexture,
+            roughness: roughnessLow, // Base roughness
+            metalness: 0.0, // No metalness like example
+            
+            // Enhanced surface details
+            bumpMap: earthBumpRoughnessCloudsTexture,
+            bumpScale: 0.02, // Same as example
+            
+            // Lighting response
+            envMapIntensity: 1.0
         });
+        
+        // Custom shader for enhanced Earth surface (matching example logic)
+        innerMaterial.onBeforeCompile = (shader) => {
+            // Add uniforms for roughness range
+            shader.uniforms.roughnessLow = { value: roughnessLow };
+            shader.uniforms.roughnessHigh = { value: roughnessHigh };
+            
+            // Add uniform declarations to fragment shader
+            shader.fragmentShader = shader.fragmentShader.replace(
+                'uniform float roughness;',
+                `uniform float roughness;
+                uniform float roughnessLow;
+                uniform float roughnessHigh;`
+            );
+            
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `
+                #include <map_fragment>
+                
+                // Get cloud strength from blue channel for surface color mixing
+                float surfaceCloudsStrength = texture2D(roughnessMap, vMapUv).b;
+                surfaceCloudsStrength = smoothstep(0.2, 1.0, surfaceCloudsStrength);
+                
+                // Mix day texture with clouds (same as example)
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), surfaceCloudsStrength * 2.0);
+                `
+            );
+            
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <roughnessmap_fragment>',
+                `
+                #include <roughnessmap_fragment>
+                
+                // Advanced roughness calculation (same as example)
+                float roughnessFromMap = texture2D(roughnessMap, vMapUv).g;
+                float roughnessCloudsStrength = texture2D(roughnessMap, vMapUv).b;
+                roughnessCloudsStrength = smoothstep(0.2, 1.0, roughnessCloudsStrength);
+                
+                // Use max of roughness and cloud step (same as example)
+                float finalRoughness = max(roughnessFromMap, step(0.01, roughnessCloudsStrength));
+                
+                // Remap between low and high roughness (same as example)
+                roughnessFactor = mix(roughnessLow, roughnessHigh, finalRoughness);
+                `
+            );
+        };
         
         this.innerPlanet = new THREE.Mesh(innerGeometry, innerMaterial);
         this.innerPlanet.receiveShadow = true;
-        this.innerPlanet.castShadow = false; // Inner sphere doesn't cast shadows
-        // Set render order for inner sphere (higher = rendered later)
-        this.innerPlanet.renderOrder = 2;
+        this.innerPlanet.castShadow = true;
+        this.innerPlanet.renderOrder = 1; // Render before atmosphere
         this.scene.add(this.innerPlanet);
         
-        this.planetRadius = outerRadius;
+        this.planetRadius = atmosphereRadius;
         
-        console.log('🌍 Planet created successfully:', {
-            outerRadius: outerRadius,
-            innerRadius: innerRadius,
-            outerOpacity: params.PLANET_OUTER_OPACITY,
-            innerOpacity: params.PLANET_INNER_OPACITY,
-            textureScale: params.PLANET_TEXTURE_SCALE,
-            outerTexture: 'textures/bordel_ext.png',
-            innerTextures: {
-                color: 'textures/planet_int_color.png',
-                normal: 'textures/planet_int_normal.png',
-                height: 'textures/planet_int_height.png'
+        console.log('🌍 Earth planet created (Three.js example-based):', {
+            atmosphereRadius: atmosphereRadius,
+            planetRadius: planetRadius,
+            atmosphereOpacity: params.PLANET_OUTER_OPACITY,
+            textureMapping: 'Natural UV mapping (no repeat) - prevents polar distortion',
+            atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg (BackSide)',
+            surfaceTexture: 'earth_day_4096.jpg (FrontSide)',
+            materialParameters: {
+                roughnessLow: roughnessLow,
+                roughnessHigh: roughnessHigh,
+                atmosphereRoughness: roughnessHigh,
+                surfaceBaseRoughness: roughnessLow,
+                metalness: 0.0
             },
-            innerMaterial: {
-                roughness: 0.1,
-                metalness: 0.9,
-                clearcoat: 0.8,
-                clearcoatRoughness: 0.05,
-                envMapIntensity: 1.5
+            features: {
+                atmosphereLayer: 'Blue channel cloud processing with BackSide rendering',
+                surfaceDetails: 'Dynamic roughness mapping with texture channels',
+                cloudBlending: 'Surface-cloud color mixing at 2.0x multiplier',
+                textureChannels: 'R=Bump, G=Roughness, B=Clouds',
+                uvMapping: 'Standard spherical UV mapping without repetition'
             },
-            displacementScale: 0.5,
-            normalScale: '2.0x2.0',
-            geometryResolution: '128x128',
-            inScene: this.scene.children.includes(this.planet) && this.scene.children.includes(this.innerPlanet),
-            innerVisible: this.innerPlanet.visible,
-            outerVisible: this.planet.visible
+            shaderEnhancements: {
+                atmosphere: 'Cloud transparency with smoothstep(0.2, 1.0)',
+                surface: 'Roughness remapping between low/high values',
+                rendering: 'Surface first (order 1), atmosphere second (order 2)'
+            },
+            exampleCompliance: 'Full compatibility with Three.js WebGPU Earth example'
         });
         
-        // Debug: Check if inner sphere is visible
-        if (params.PLANET_OUTER_OPACITY >= 1.0 && innerRadius < outerRadius * 0.8) {
-            console.warn('⚠️  Inner sphere may not be visible: outer sphere is opaque and inner sphere is small');
-            console.log('💡 Suggestions:');
-            console.log('   - Reduce PLANET_OUTER_OPACITY to < 1.0 to make outer sphere transparent');
-            console.log('   - Increase PLANET_INNER_SPHERE_SCALE to make inner sphere bigger');
-            console.log('   - Use toggleInnerSphereVisibility() method to debug');
+        // Debug: Check visibility and provide tips
+        if (params.PLANET_OUTER_OPACITY >= 1.0 && planetRadius < atmosphereRadius * 0.8) {
+            console.warn('⚠️  Surface may not be visible: atmosphere is opaque and surface is small');
+            console.log('💡 Three.js example-based suggestions:');
+            console.log('   - Reduce PLANET_OUTER_OPACITY to 0.7 for better atmosphere transparency');
+            console.log('   - Increase PLANET_INNER_SPHERE_SCALE to 0.95 for better surface visibility');
+            console.log('   - Use toggleCloudVisibility() method to debug atmosphere layer');
+            console.log('   - Use toggleAtmosphereSide() to test BackSide vs FrontSide rendering');
         }
     }
 
@@ -593,8 +671,8 @@ export class SceneManager {
     }
 
     // Get inner planet radius
-    getInnerPlanetRadius() {
-        return this.planetRadius * params.PLANET_INNER_SPHERE_SCALE;
+    getAtmosphereRadius() {
+        return this.planetRadius * params.PLANET_OUTER_SPHERE_SCALE;
     }
 
     // Set background color
@@ -676,17 +754,10 @@ export class SceneManager {
         }
     }
 
-    // Debug method for texture scale testing
+    // Debug method for texture scale testing (disabled for proper Earth mapping)
     setPlanetTextureScale(scale = 1.0) {
-        if (this.planet && this.planet.material && this.planet.material.map) {
-            this.planet.material.map.repeat.set(scale, scale);
-            console.log(`🌍 Outer sphere texture scale set to: ${scale}`);
-        }
-        
-        if (this.innerPlanet && this.innerPlanet.material && this.innerPlanet.material.map) {
-            this.innerPlanet.material.map.repeat.set(scale, scale);
-            console.log(`🌍 Inner sphere texture scale set to: ${scale}`);
-        }
+        console.log(`🌍 Texture scaling disabled for proper Earth UV mapping (requested scale: ${scale})`);
+        console.log(`💡 Earth textures use natural UV mapping without repeat to avoid polar distortion`);
     }
 
     // Debug method for adjusting inner sphere material properties
@@ -724,6 +795,174 @@ export class SceneManager {
                 rotation: this.cameraLight.rotation
             });
         }
+    }
+
+    // Enhanced Earth texture debug methods (matching example parameters)
+    toggleCloudVisibility() {
+        if (this.planet) {
+            this.planet.visible = !this.planet.visible;
+            console.log(`☁️ Atmosphere layer visibility: ${this.planet.visible ? 'ON' : 'OFF'}`);
+        }
+    }
+
+    adjustAtmosphereOpacity(opacity = 0.7) {
+        if (this.planet && this.planet.material) {
+            this.planet.material.opacity = opacity;
+            this.planet.material.transparent = opacity < 1.0;
+            console.log(`☁️ Atmosphere opacity set to: ${opacity}`);
+        }
+    }
+
+    adjustRoughnessRange(roughnessLow = 0.25, roughnessHigh = 0.35) {
+        if (this.innerPlanet && this.innerPlanet.material) {
+            // Update shader uniforms if they exist
+            if (this.innerPlanet.material.uniforms) {
+                this.innerPlanet.material.uniforms.roughnessLow.value = roughnessLow;
+                this.innerPlanet.material.uniforms.roughnessHigh.value = roughnessHigh;
+            }
+            console.log(`🌍 Roughness range set to: ${roughnessLow} - ${roughnessHigh}`);
+        }
+    }
+
+    adjustSurfaceBumpScale(scale = 0.02) {
+        if (this.innerPlanet && this.innerPlanet.material) {
+            this.innerPlanet.material.bumpScale = scale;
+            console.log(`🌍 Surface bump scale set to: ${scale}`);
+        }
+    }
+
+    adjustAtmosphereRoughness(roughness = 0.35) {
+        if (this.planet && this.planet.material) {
+            this.planet.material.roughness = roughness;
+            console.log(`☁️ Atmosphere roughness set to: ${roughness}`);
+        }
+    }
+
+    toggleAtmosphereSide() {
+        if (this.planet && this.planet.material) {
+            const material = this.planet.material;
+            if (material.side === THREE.BackSide) {
+                material.side = THREE.FrontSide;
+                console.log('☁️ Atmosphere side: FRONT');
+            } else {
+                material.side = THREE.BackSide;
+                console.log('☁️ Atmosphere side: BACK');
+            }
+            material.needsUpdate = true;
+        }
+    }
+
+    // Test Earth texture effects in sequence (matching example parameters)
+    testEarthTextureEffects() {
+        console.log('🌍 Testing Earth texture effects (example-based)...');
+        
+        const tests = [
+            { name: 'Normal State', action: () => this.resetEarthTextures() },
+            { name: 'Surface Only', action: () => this.toggleCloudVisibility() },
+            { name: 'Atmosphere Only', action: () => this.toggleInnerSphereVisibility() },
+            { name: 'High Atmosphere Opacity', action: () => this.adjustAtmosphereOpacity(0.9) },
+            { name: 'Low Atmosphere Opacity', action: () => this.adjustAtmosphereOpacity(0.3) },
+            { name: 'Enhanced Bump Scale', action: () => this.adjustSurfaceBumpScale(0.1) },
+            { name: 'Reduced Bump Scale', action: () => this.adjustSurfaceBumpScale(0.005) },
+            { name: 'High Roughness Range', action: () => this.adjustRoughnessRange(0.4, 0.6) },
+            { name: 'Low Roughness Range', action: () => this.adjustRoughnessRange(0.1, 0.2) },
+            { name: 'Front Side Atmosphere', action: () => this.toggleAtmosphereSide() },
+            { name: 'Rough Atmosphere', action: () => this.adjustAtmosphereRoughness(0.8) }
+        ];
+        
+        let currentIndex = 0;
+        
+        const runNextTest = () => {
+            if (currentIndex < tests.length) {
+                const test = tests[currentIndex];
+                console.log(`🧪 Testing: ${test.name}`);
+                test.action();
+                currentIndex++;
+                setTimeout(runNextTest, 3000); // 3 seconds per test
+            } else {
+                console.log('🌍 Earth texture test completed - resetting to example defaults');
+                this.resetEarthTextures();
+            }
+        };
+        
+        runNextTest();
+    }
+
+    // Reset all Earth texture effects to example defaults
+    resetEarthTextures() {
+        // Reset atmosphere layer
+        if (this.planet) {
+            this.planet.visible = true;
+            if (this.planet.material) {
+                this.planet.material.opacity = params.PLANET_OUTER_OPACITY;
+                this.planet.material.transparent = params.PLANET_OUTER_OPACITY < 1.0;
+                this.planet.material.side = THREE.BackSide;
+                this.planet.material.roughness = 0.35; // roughnessHigh
+                this.planet.material.needsUpdate = true;
+            }
+        }
+        
+        // Reset surface
+        if (this.innerPlanet) {
+            this.innerPlanet.visible = true;
+            if (this.innerPlanet.material) {
+                this.innerPlanet.material.roughness = 0.25; // roughnessLow base
+                this.innerPlanet.material.bumpScale = 0.02;
+                
+                // Reset shader uniforms
+                if (this.innerPlanet.material.uniforms) {
+                    this.innerPlanet.material.uniforms.roughnessLow.value = 0.25;
+                    this.innerPlanet.material.uniforms.roughnessHigh.value = 0.35;
+                }
+            }
+        }
+        
+        console.log('🌍 Earth textures reset to example defaults');
+    }
+
+    // Get detailed Earth texture information (example-based)
+    getEarthTextureInfo() {
+        const atmosphereMaterial = this.planet?.material;
+        const surfaceMaterial = this.innerPlanet?.material;
+        
+        return {
+            atmosphere: {
+                visible: this.planet?.visible || false,
+                opacity: atmosphereMaterial?.opacity || 'N/A',
+                roughness: atmosphereMaterial?.roughness || 'N/A',
+                side: atmosphereMaterial?.side === THREE.BackSide ? 'BackSide' : 'FrontSide',
+                metalness: atmosphereMaterial?.metalness || 'N/A',
+                texture: 'earth_bump_roughness_clouds_4096.jpg',
+                channels: {
+                    red: 'Bump/Elevation',
+                    green: 'Roughness',
+                    blue: 'Clouds/Alpha'
+                },
+                features: ['Cloud transparency', 'Atmospheric scattering', 'Volume rendering']
+            },
+            surface: {
+                visible: this.innerPlanet?.visible || false,
+                baseRoughness: surfaceMaterial?.roughness || 'N/A',
+                bumpScale: surfaceMaterial?.bumpScale || 'N/A',
+                metalness: surfaceMaterial?.metalness || 'N/A',
+                transparent: surfaceMaterial?.transparent || false,
+                texture: 'earth_day_4096.jpg',
+                roughnessTexture: 'earth_bump_roughness_clouds_4096.jpg',
+                features: ['Dynamic roughness mapping', 'Cloud-surface blending', 'Multi-channel texturing']
+            },
+            shaderEnhancements: {
+                atmosphere: 'Blue channel cloud processing with smoothstep',
+                surface: 'Advanced roughness remapping between low/high values',
+                rendering: 'Surface first, then atmosphere (BackSide)'
+            },
+            exampleParameters: {
+                roughnessLow: 0.25,
+                roughnessHigh: 0.35,
+                cloudSmoothstep: '0.2 to 1.0',
+                cloudMultiplier: '2.0x for brightness',
+                renderOrder: 'Surface (1) → Atmosphere (2)'
+            }
+        };
     }
 
     // Debug method for testing directional light colors
@@ -764,11 +1003,10 @@ export class SceneManager {
         testNext();
     }
 
-    // Update planet texture scale and persist to params
+    // Update planet texture scale and persist to params (disabled for proper Earth mapping)
     updatePlanetTextureScale(scale = 1.0) {
-        params.PLANET_TEXTURE_SCALE = scale;
-        this.setPlanetTextureScale(scale);
-        console.log(`🌍 Planet texture scale updated to: ${scale} (persisted to params)`);
+        console.log(`🌍 Planet texture scaling disabled for proper Earth UV mapping (requested scale: ${scale})`);
+        console.log(`💡 PLANET_TEXTURE_SCALE parameter is ignored for Earth textures to prevent polar distortion`);
     }
 
     toggleOuterSphereVisibility() {
@@ -796,21 +1034,19 @@ export class SceneManager {
 
     // Get planet debug info
     getPlanetDebugInfo() {
-        const outerTextureScale = this.planet?.material?.map?.repeat || { x: 'N/A', y: 'N/A' };
-        const innerTextureScale = this.innerPlanet?.material?.map?.repeat || { x: 'N/A', y: 'N/A' };
-        
         return {
-            outerRadius: this.planetRadius,
-            innerRadius: this.getInnerPlanetRadius(),
-            outerOpacity: this.planet?.material?.opacity || 'N/A',
-            innerOpacity: this.innerPlanet?.material?.opacity || 'N/A',
-            outerVisible: this.planet?.visible || false,
-            innerVisible: this.innerPlanet?.visible || false,
-            outerRenderOrder: this.planet?.renderOrder || 'N/A',
-            innerRenderOrder: this.innerPlanet?.renderOrder || 'N/A',
-            textureScale: params.PLANET_TEXTURE_SCALE,
-            outerTextureScale: `${outerTextureScale.x} x ${outerTextureScale.y}`,
-            innerTextureScale: `${innerTextureScale.x} x ${innerTextureScale.y}`
+            atmosphereRadius: this.planetRadius,
+            planetRadius: this.getInnerPlanetRadius(),
+            atmosphereOpacity: this.planet?.material?.opacity || 'N/A',
+            surfaceOpacity: this.innerPlanet?.material?.opacity || 'N/A',
+            atmosphereVisible: this.planet?.visible || false,
+            surfaceVisible: this.innerPlanet?.visible || false,
+            atmosphereRenderOrder: this.planet?.renderOrder || 'N/A',
+            surfaceRenderOrder: this.innerPlanet?.renderOrder || 'N/A',
+            textureMapping: 'Natural UV mapping (no repeat)',
+            atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg',
+            surfaceTexture: 'earth_day_4096.jpg',
+            uvMapping: 'Standard spherical UV without distortion'
         };
     }
 

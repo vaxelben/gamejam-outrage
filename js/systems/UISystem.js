@@ -687,6 +687,53 @@ export class UISystem extends IGameSystem {
         }
     }
 
+    // Individual display update methods
+    updateOutrageDisplay(outrageValue) {
+        const outrageFill = document.getElementById('outrage-fill');
+        const outrageText = document.getElementById('outrage-text');
+        if (outrageFill && outrageText) {
+            outrageFill.style.height = `${outrageValue}%`;
+            outrageText.textContent = `${Math.round(outrageValue)}%`;
+        }
+    }
+
+    updateEnergyDisplay(energyValue) {
+        const energyFill = document.getElementById('energy-fill');
+        const energyText = document.getElementById('energy-text');
+        if (energyFill && energyText) {
+            energyFill.style.height = `${energyValue}%`;
+            energyText.textContent = `${Math.round(energyValue)}%`;
+        }
+    }
+
+    updateTimeDisplay(timeValue) {
+        const timeElement = document.getElementById('time-value');
+        if (timeElement) {
+            timeElement.textContent = `${Math.round(timeValue)}s`;
+        }
+    }
+
+    updatePolarisedDisplay(polarisedValue) {
+        const polarisedElement = document.getElementById('polarised-value');
+        if (polarisedElement) {
+            polarisedElement.textContent = polarisedValue.toString();
+        }
+    }
+
+    updateMaskDisplay(maskType) {
+        // Update mask selector visual state
+        const buttons = this.elements.maskSelector.querySelectorAll('div');
+        buttons.forEach((button, index) => {
+            if (index === 0) {
+                // Neutral button
+                button.style.opacity = maskType === null ? '1' : '0.6';
+            } else {
+                // Mask buttons (1-7), index 1-7 corresponds to maskType 1-7
+                button.style.opacity = maskType === index ? '1' : '0.6';
+            }
+        });
+    }
+
     shutdown() {
         if (this.elements.container) {
             document.body.removeChild(this.elements.container);

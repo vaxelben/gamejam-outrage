@@ -1,4 +1,16 @@
 // core/InputManager.js - Centralized input management following SRP
+// 
+// Features:
+// - Keyboard and mouse input handling
+// - Touch controls for mobile devices
+// - Automatic fullscreen on landscape orientation (mobile)
+// 
+// Usage example:
+// const inputManager = new InputManager();
+// await inputManager.initialize();
+// inputManager.setAutoFullscreen(true);  // Enable automatic fullscreen
+// inputManager.toggleFullscreen();       // Manual fullscreen toggle
+//
 export class InputManager {
     constructor() {
         this.keys = new Map();
@@ -14,6 +26,14 @@ export class InputManager {
         this.touchMovement = { x: 0, y: 0 };
         this.touchSensitivity = 0.05; // Much higher sensitivity for mobile testing
         this.isMobile = this.detectMobile();
+        
+        // Orientation and fullscreen management
+        this.isFullscreen = false;
+        this.currentOrientation = null;
+        this.orientationLocked = false;
+        this.autoFullscreenEnabled = true; // Enable by default on mobile
+        this.wantsFullscreen = false; // Flag to enter fullscreen on next user interaction
+        this.fullscreenPromptShown = false; // Prevent spam
         
 
     }
@@ -34,7 +54,11 @@ export class InputManager {
             console.log('📱 Touch controls enabled for mobile');
         }
         
-
+        // Setup orientation and fullscreen management for mobile
+        if (this.isMobile) {
+            this.setupOrientationHandling();
+            console.log('🔄 Orientation and fullscreen management enabled');
+        }
 
         console.log('🎮 Input Manager initialized');
     }
@@ -94,6 +118,10 @@ export class InputManager {
         // Mouse buttons - not passive as we might need to prevent default
         this.canvas.addEventListener('mousedown', (event) => {
             this.mouseButtons.set(event.button, true);
+            
+            // Try to enter fullscreen on user interaction (if landscape)
+            this.tryEnterFullscreenOnInteraction();
+            
             this.notifyListeners('mousedown', { 
                 button: event.button, 
                 x: event.clientX, 
@@ -138,6 +166,248 @@ export class InputManager {
         }, { passive: true });
     }
 
+    setupOrientationHandling() {
+        // Listen to orientation changes
+        window.addEventListener('orientationchange', () => {
+            // Wait for orientation change to complete
+            setTimeout(() => {
+                this.handleOrientationChange();
+            }, 100);
+        });
+        
+        // Also listen to resize events as backup
+        window.addEventListener('resize', () => {
+            this.handleOrientationChange();
+        });
+        
+        // Check initial orientation
+        this.handleOrientationChange();
+        
+        // Listen to fullscreen changes to keep state in sync
+        document.addEventListener('fullscreenchange', () => {
+            this.isFullscreen = !!document.fullscreenElement;
+            if (this.isFullscreen) {
+                this.wantsFullscreen = false; // Reset flag when entering fullscreen
+                this.fullscreenPromptShown = false; // Allow prompt to show again later
+            }
+        });
+        
+        document.addEventListener('webkitfullscreenchange', () => {
+            this.isFullscreen = !!document.webkitFullscreenElement;
+            if (this.isFullscreen) {
+                this.wantsFullscreen = false;
+                this.fullscreenPromptShown = false;
+            }
+        });
+        
+        document.addEventListener('mozfullscreenchange', () => {
+            this.isFullscreen = !!document.mozFullScreenElement;
+            if (this.isFullscreen) {
+                this.wantsFullscreen = false;
+                this.fullscreenPromptShown = false;
+            }
+        });
+        
+        document.addEventListener('msfullscreenchange', () => {
+            this.isFullscreen = !!document.msFullscreenElement;
+            if (this.isFullscreen) {
+                this.wantsFullscreen = false;
+                this.fullscreenPromptShown = false;
+            }
+        });
+    }
+
+    handleOrientationChange() {
+        if (!this.isMobile) return;
+        
+        const orientation = this.getOrientation();
+        
+        // Only act if orientation actually changed
+        if (orientation === this.currentOrientation) return;
+        
+        this.currentOrientation = orientation;
+        
+        // Only auto-enter fullscreen if enabled
+        if (this.isAutoFullscreenEnabled()) {
+            if (orientation === 'landscape') {
+                // Store the intention to enter fullscreen
+                this.wantsFullscreen = true;
+                console.log('🔄 Landscape detected - fullscreen will be enabled on next user interaction');
+            } else if (orientation === 'portrait') {
+                this.wantsFullscreen = false;
+                this.exitFullscreen();
+            }
+        }
+        
+        console.log(`🔄 Orientation changed to ${orientation}`);
+    }
+
+    getOrientation() {
+        // Check screen orientation API first
+        if (screen.orientation) {
+            return screen.orientation.angle === 0 || screen.orientation.angle === 180 ? 'portrait' : 'landscape';
+        }
+        
+        // Fallback to window orientation
+        if (window.orientation !== undefined) {
+            return Math.abs(window.orientation) === 90 ? 'landscape' : 'portrait';
+        }
+        
+        // Final fallback to window dimensions
+        return window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+    }
+
+    async enterFullscreen() {
+        if (this.isFullscreen) return;
+        
+        try {
+            // Check if we can enter fullscreen (permissions check)
+            if (!document.fullscreenEnabled && !document.webkitFullscreenEnabled && 
+                !document.mozFullScreenEnabled && !document.msFullscreenEnabled) {
+                console.warn('❌ Fullscreen is not supported by this browser');
+                return false;
+            }
+            
+            // Try different fullscreen methods
+            const element = document.documentElement;
+            
+            if (element.requestFullscreen) {
+                await element.requestFullscreen();
+            } else if (element.webkitRequestFullscreen) {
+                await element.webkitRequestFullscreen();
+            } else if (element.mozRequestFullScreen) {
+                await element.mozRequestFullScreen();
+            } else if (element.msRequestFullscreen) {
+                await element.msRequestFullscreen();
+            }
+            
+            this.isFullscreen = true;
+            console.log('📱 Entered fullscreen mode');
+            return true;
+        } catch (error) {
+            console.warn('❌ Could not enter fullscreen (user gesture required):', error.message);
+            this.showFullscreenPrompt();
+            return false;
+        }
+    }
+
+    async exitFullscreen() {
+        if (!this.isFullscreen) return;
+        
+        try {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                await document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                await document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                await document.msExitFullscreen();
+            }
+            
+            this.isFullscreen = false;
+            console.log('📱 Exited fullscreen mode');
+        } catch (error) {
+            console.warn('❌ Could not exit fullscreen:', error);
+        }
+    }
+
+    // Public methods for external control
+    toggleFullscreen() {
+        if (this.isFullscreen) {
+            this.exitFullscreen();
+        } else {
+            this.enterFullscreen();
+        }
+    }
+
+    getCurrentOrientation() {
+        return this.currentOrientation;
+    }
+
+    isInFullscreen() {
+        return this.isFullscreen;
+    }
+
+    // Enable/disable automatic fullscreen on orientation change
+    setAutoFullscreen(enabled) {
+        this.autoFullscreenEnabled = enabled;
+        if (enabled) {
+            console.log('📱 Auto-fullscreen enabled');
+        } else {
+            console.log('📱 Auto-fullscreen disabled');
+        }
+    }
+
+    isAutoFullscreenEnabled() {
+        return this.autoFullscreenEnabled;
+    }
+
+    showFullscreenPrompt() {
+        if (this.fullscreenPromptShown) return;
+        
+        this.fullscreenPromptShown = true;
+        
+        // Create a non-intrusive message
+        const prompt = document.createElement('div');
+        prompt.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            z-index: 10000;
+            pointer-events: auto;
+            cursor: pointer;
+            border: 2px solid #333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        `;
+        prompt.innerHTML = `
+            <div style="margin-bottom: 8px;">🔄 Rotate to landscape</div>
+            <div style="font-size: 12px; opacity: 0.8;">Tap to enable fullscreen</div>
+        `;
+        
+        // Add click handler to enter fullscreen
+        prompt.addEventListener('click', () => {
+            this.enterFullscreen();
+            prompt.remove();
+        });
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (prompt.parentNode) {
+                prompt.remove();
+            }
+            this.fullscreenPromptShown = false;
+        }, 5000);
+        
+        document.body.appendChild(prompt);
+    }
+
+    // Try to enter fullscreen on user interaction if wanted
+    tryEnterFullscreenOnInteraction() {
+        if (this.wantsFullscreen && !this.isFullscreen && 
+            this.currentOrientation === 'landscape' && 
+            this.isAutoFullscreenEnabled()) {
+            this.enterFullscreen().then(success => {
+                if (success) {
+                    this.wantsFullscreen = false; // Reset flag on success
+                }
+            });
+        }
+    }
+
+    // Reset fullscreen prompt state (useful for debugging)
+    resetFullscreenPrompt() {
+        this.fullscreenPromptShown = false;
+        this.wantsFullscreen = false;
+        console.log('📱 Fullscreen prompt state reset');
+    }
+
     // Detect if device is mobile
     detectMobile() {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
@@ -174,6 +444,9 @@ export class InputManager {
                 this.touchCurrent.x = touch.clientX;
                 this.touchCurrent.y = touch.clientY;
                 this.touchActive = true;
+                
+                // Try to enter fullscreen on user interaction (if landscape)
+                this.tryEnterFullscreenOnInteraction();
                 
                 this.notifyListeners('touchstart', {
                     x: touch.clientX,
@@ -479,6 +752,11 @@ export class InputManager {
             touchOrigin: this.touchOrigin,
             touchCurrent: this.touchCurrent,
             isMobile: this.isMobile,
+            orientation: this.currentOrientation,
+            isFullscreen: this.isFullscreen,
+            wantsFullscreen: this.wantsFullscreen,
+            autoFullscreenEnabled: this.isAutoFullscreenEnabled(),
+            fullscreenPromptShown: this.fullscreenPromptShown,
             totalListeners: this.inputListeners.size
         };
     }

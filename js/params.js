@@ -3,8 +3,9 @@ export const params = {
     // Planet settings
     PLANET_DIAMETER: 60,
     PLANET_SURFACE_OFFSET: 3, // Distance above surface
-    PLANET_INNER_SPHERE_SCALE: 0.97, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
-    PLANET_OUTER_OPACITY: 0.9999, // Outer sphere opacity (more transparent to see inner sphere)
+    PLANET_INNER_SPHERE_SCALE: 1.0, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
+    PLANET_OUTER_SPHERE_SCALE: 1.02, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
+    PLANET_OUTER_OPACITY: 0.5, // Outer sphere opacity (more transparent to see inner sphere)
     PLANET_INNER_OPACITY: 0.5, // Inner sphere opacity (more opaque to show details)
     
     // Player movement
