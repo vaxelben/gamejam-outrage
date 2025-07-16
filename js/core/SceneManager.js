@@ -186,7 +186,8 @@ export class SceneManager {
         // Globe material matching the example's settings
         const innerMaterial = new THREE.MeshStandardMaterial({
             map: earthDayTexture,
-            transparent: false, // Surface is opaque
+            transparent: true,
+            opacity: 0.7,
             side: THREE.FrontSide,
             
             // Surface properties matching example
