@@ -214,7 +214,7 @@ export class PlayerSystem extends IGameSystem {
                 movementInCameraSpace.y = movementDirection.dot(cameraUp);
                 
                 // Calculate tilt angle based on horizontal movement (X component)
-                const tiltAngle = -movementInCameraSpace.x * tiltAmount; // Negative for correct direction
+                const tiltAngle = movementInCameraSpace.x * tiltAmount;
                 
                 // Apply tilt rotation around camera's Z axis
                 const tiltQuaternion = new THREE.Quaternion().setFromAxisAngle(tiltAxis, tiltAngle);
