@@ -63,6 +63,9 @@ export class GameEngine {
         // Update all systems through system manager
         this.systemManager.update(deltaTime);
         
+        // Planet rotation disabled - no automatic rotation
+        // this.sceneManager.updatePlanetRotation(deltaTime);
+        
         // Update camera (could be moved to a camera system later)
         const playerSystem = this.systemManager.getSystem('player');
         if (playerSystem && playerSystem.getPlayerPosition) {

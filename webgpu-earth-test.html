@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WebGPU Earth Test - SceneManager Comparison</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <strong>WebGPU Earth Test</strong><br>
+        Reproducing exact example for SceneManager comparison<br>
+        <em>Check console for errors</em>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // Fallback implementation using standard Three.js (since WebGPU may not be available)
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+        let camera, scene, renderer, controls, globe, atmosphere, clock;
+        let atmosphereDayColor, atmosphereTwilightColor, roughnessLow, roughnessHigh;
+
+        init();
+
+        function init() {
+            clock = new THREE.Clock();
+
+            // Scene
+            scene = new THREE.Scene();
+
+            // Camera - same position as example
+            camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(4.5, 2, 3);
+
+            // Renderer - use WebGL as fallback
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setAnimationLoop(animate);
+            document.body.appendChild(renderer.domElement);
+
+            // Sun light - same as example
+            const sun = new THREE.DirectionalLight('#ffffff', 2);
+            sun.position.set(0, 0, 3);
+            scene.add(sun);
+
+            // Colors exactly like example
+            atmosphereDayColor = new THREE.Color('#4db2ff');
+            atmosphereTwilightColor = new THREE.Color('#bc490b');
+            roughnessLow = 0.25;
+            roughnessHigh = 0.35;
+
+            // Load textures - same paths as example
+            const textureLoader = new THREE.TextureLoader();
+
+            const dayTexture = textureLoader.load('./textures/planet_color.jpg');
+            dayTexture.colorSpace = THREE.SRGBColorSpace;
+            dayTexture.anisotropy = 8;
+
+            const nightTexture = textureLoader.load('./textures/earth_night_4096.jpg');
+            nightTexture.colorSpace = THREE.SRGBColorSpace;
+            nightTexture.anisotropy = 8;
+
+            const bumpRoughnessCloudsTexture = textureLoader.load('./textures/earth_bump_roughness_clouds_4096.jpg');
+            bumpRoughnessCloudsTexture.anisotropy = 8;
+
+            // Globe material - reproducing TSL logic with custom shaders
+            const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
+            const globeMaterial = new THREE.MeshStandardMaterial({
+                map: dayTexture,
+                roughnessMap: bumpRoughnessCloudsTexture,
+                bumpMap: bumpRoughnessCloudsTexture,
+                bumpScale: 0.02,
+                metalness: 0.0
+            });
+
+            // Custom shader reproducing EXACT WebGPU example logic
+            globeMaterial.onBeforeCompile = (shader) => {
+                // Add uniforms exactly like example
+                shader.uniforms.nightTexture = { value: nightTexture };
+                shader.uniforms.sunPosition = { value: sun.position };
+                shader.uniforms.atmosphereDayColor = { value: atmosphereDayColor };
+                shader.uniforms.atmosphereTwilightColor = { value: atmosphereTwilightColor };
+                shader.uniforms.roughnessLow = { value: roughnessLow };
+                shader.uniforms.roughnessHigh = { value: roughnessHigh };
+
+                // Add uniform declarations
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    'varying vec3 vViewPosition;',
+                    `varying vec3 vViewPosition;
+                    uniform sampler2D nightTexture;
+                    uniform vec3 sunPosition;
+                    uniform vec3 atmosphereDayColor;
+                    uniform vec3 atmosphereTwilightColor;
+                    uniform float roughnessLow;
+                    uniform float roughnessHigh;`
+                );
+
+                // Reproduce exact WebGPU Earth shader logic
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `
+                    #include <map_fragment>
+                    
+                    // Extract clouds strength from blue channel - EXACT same as example
+                    float cloudsStrength = texture2D(map, vMapUv).b;
+                    cloudsStrength = smoothstep(0.2, 1.0, cloudsStrength);
+                    
+                    // Mix day texture with clouds - EXACT same as example  
+                    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), cloudsStrength * 2.0);
+                    
+                    // Sun orientation calculation
+                    vec3 worldNormal = normalize(vNormal);
+                    vec3 sunDirection = normalize(sunPosition);
+                    float sunOrientation = dot(worldNormal, sunDirection);
+                    
+                    // Day/night mixing - EXACT same as example
+                    float dayStrength = smoothstep(-0.25, 0.5, sunOrientation);
+                    vec3 nightColor = texture2D(nightTexture, vMapUv).rgb;
+                    diffuseColor.rgb = mix(nightColor, diffuseColor.rgb, dayStrength);
+                    
+                    // Fresnel atmosphere effect - EXACT same as example
+                    vec3 viewDirection = normalize(vViewPosition);
+                    float fresnel = abs(dot(viewDirection, worldNormal));
+                    fresnel = 1.0 - fresnel;
+                    
+                    // Atmosphere color mixing - EXACT same as example
+                    vec3 atmosphereColor = mix(atmosphereTwilightColor, atmosphereDayColor, 
+                        smoothstep(-0.25, 0.75, sunOrientation));
+                    
+                    float atmosphereDayStrength = smoothstep(-0.5, 1.0, sunOrientation);
+                    float atmosphereMix = atmosphereDayStrength * pow(fresnel, 2.0);
+                    atmosphereMix = clamp(atmosphereMix, 0.0, 1.0);
+                    
+                    diffuseColor.rgb = mix(diffuseColor.rgb, atmosphereColor, atmosphereMix);
+                    `
+                );
+
+                // Dynamic roughness - EXACT same as example
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <roughnessmap_fragment>',
+                    `
+                    #include <roughnessmap_fragment>
+                    
+                    // Advanced roughness calculation - EXACT same as example
+                    float roughnessFromMap = texture2D(roughnessMap, vMapUv).g;
+                    float roughnessClouds = texture2D(roughnessMap, vMapUv).b;
+                    roughnessClouds = smoothstep(0.2, 1.0, roughnessClouds);
+                    
+                    // Use max of roughness and cloud step - EXACT same as example
+                    float finalRoughness = max(roughnessFromMap, step(0.01, roughnessClouds));
+                    
+                    // Remap between low and high roughness - EXACT same as example
+                    roughnessFactor = mix(roughnessLow, roughnessHigh, finalRoughness);
+                    `
+                );
+
+                // Store shader reference for GUI updates
+                globeMaterial.shader = shader;
+            };
+
+            globe = new THREE.Mesh(sphereGeometry, globeMaterial);
+            scene.add(globe);
+
+            // Atmosphere - reproducing EXACT WebGPU example
+            const atmosphereMaterial = new THREE.MeshBasicMaterial({
+                transparent: true,
+                side: THREE.BackSide
+            });
+
+            atmosphereMaterial.onBeforeCompile = (shader) => {
+                shader.uniforms.sunPosition = { value: sun.position };
+                shader.uniforms.atmosphereDayColor = { value: atmosphereDayColor };
+                shader.uniforms.atmosphereTwilightColor = { value: atmosphereTwilightColor };
+
+                // Add uniforms
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    'uniform float opacity;',
+                    `uniform float opacity;
+                    uniform vec3 sunPosition;
+                    uniform vec3 atmosphereDayColor;
+                    uniform vec3 atmosphereTwilightColor;`
+                );
+
+                // Add varyings
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    'void main() {',
+                    `varying vec3 vWorldPosition;
+                    varying vec3 vWorldNormal;
+                    void main() {`
+                );
+
+                shader.vertexShader = shader.vertexShader.replace(
+                    'void main() {',
+                    `varying vec3 vWorldPosition;
+                    varying vec3 vWorldNormal;
+                    void main() {`
+                );
+
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <project_vertex>',
+                    `#include <project_vertex>
+                    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    vWorldNormal = normalize(mat3(modelMatrix) * normal);`
+                );
+
+                // EXACT atmosphere calculation from WebGPU example
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+                    `
+                    // Fresnel EXACT same as WebGPU example
+                    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+                    float fresnel = abs(dot(viewDirection, normalize(vWorldNormal)));
+                    fresnel = 1.0 - fresnel;
+                    
+                    // Sun orientation for atmosphere
+                    vec3 sunDirection = normalize(sunPosition);
+                    float sunOrientation = dot(normalize(vWorldNormal), sunDirection);
+                    
+                    // Atmosphere color EXACT same as example
+                    vec3 atmosphereColor = mix(atmosphereTwilightColor, atmosphereDayColor, 
+                        smoothstep(-0.25, 0.75, sunOrientation));
+                    
+                    // Alpha EXACT same as WebGPU example
+                    float alpha = pow(smoothstep(0.73, 1.0, fresnel), 3.0);
+                    alpha *= smoothstep(-0.5, 1.0, sunOrientation);
+                    
+                    gl_FragColor = vec4(atmosphereColor, alpha * opacity);
+                    `
+                );
+
+                // Store shader reference for updates
+                atmosphereMaterial.shader = shader;
+            };
+
+            atmosphere = new THREE.Mesh(sphereGeometry, atmosphereMaterial);
+            atmosphere.scale.setScalar(1.04); // 4% larger exactly like example
+            scene.add(atmosphere);
+
+            // Controls - same as example
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.minDistance = 0.1;
+            controls.maxDistance = 50;
+
+            // GUI - EXACT same as example
+            const gui = new GUI();
+
+            gui
+                .addColor({ color: atmosphereDayColor.getHex() }, 'color')
+                .onChange((value) => {
+                    atmosphereDayColor.set(value);
+                })
+                .name('atmosphereDayColor');
+
+            gui
+                .addColor({ color: atmosphereTwilightColor.getHex() }, 'color')
+                .onChange((value) => {
+                    atmosphereTwilightColor.set(value);
+                })
+                .name('atmosphereTwilightColor');
+
+            gui.add({ value: roughnessLow }, 'value', 0, 1, 0.001)
+                .onChange((value) => {
+                    roughnessLow = value;
+                })
+                .name('roughnessLow');
+
+            gui.add({ value: roughnessHigh }, 'value', 0, 1, 0.001)
+                .onChange((value) => {
+                    roughnessHigh = value;
+                })
+                .name('roughnessHigh');
+
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+
+            console.log('🌍 WebGPU Earth test initialized - check for differences with SceneManager');
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            const delta = clock.getDelta();
+            
+            // Planet rotation - exact same as example
+            globe.rotation.y += delta * 0.025;
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html> 

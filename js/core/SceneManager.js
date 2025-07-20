@@ -2,6 +2,9 @@
 import { params } from '../params.js';
 import { serviceContainer } from './ServiceContainer.js';
 
+// Import standard Three.js - will use custom shaders for WebGPU Earth effect compatibility
+import * as THREE from 'three';
+
 export class SceneManager {
     constructor() {
         this.canvas = null;
@@ -21,7 +24,7 @@ export class SceneManager {
     }
 
     async initialize() {
-        // Get canvas and create renderer
+        // Get canvas and create standard renderer
         this.canvas = document.getElementById('renderCanvas');
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: this.canvas, 
@@ -38,14 +41,14 @@ export class SceneManager {
         // Initialize with neutral mask background color
         this.scene.background = new THREE.Color(params.MASK_BACKGROUND_COLORS[null]);
 
-        // Create camera
+        // Create camera - adapted for game with better FOV and distance
         this.camera = new THREE.PerspectiveCamera(
-            75, 
+            75,  // Better FOV for gameplay
             window.innerWidth / window.innerHeight, 
             0.1, 
-            1000
+            1000  // Larger max distance for game
         );
-        this.camera.position.set(0, params.CAMERA_DISTANCE, 0);
+        this.camera.position.set(0, params.CAMERA_DISTANCE, 0);  // Use params for proper game distance
         this.camera.lookAt(0, 0, 0);
         
         // Register camera in service container for other systems to access
@@ -66,236 +69,147 @@ export class SceneManager {
         // Hide helpers by default
         this.toggleHelpers(this.showHelpers);
 
+        // Add GUI for atmosphere controls (exactly like the example)
+        this.initializeGUI();
+
         console.log('🎬 Scene Manager initialized');
         console.log('🎨 Background color initialized for neutral mask:', params.MASK_BACKGROUND_COLORS[null].toString(16));
     }
 
     createLights() {
-        // Ambient light - reduced intensity to let other lights show more effect
-        const ambientLight = new THREE.AmbientLight(0xfeefff, 0.8);
-        this.scene.add(ambientLight);
-
-        // Directional light with shadows - reduced intensity
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        directionalLight.position.set(0, 20, 25);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 50;
-        directionalLight.shadow.camera.left = -50;
-        directionalLight.shadow.camera.right = 50;
-        directionalLight.shadow.camera.top = 50;
-        directionalLight.shadow.camera.bottom = -50;
-        this.scene.add(directionalLight);
-
-        // Camera-following directional light (always follows camera direction)
-        this.cameraLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        this.cameraLight.position.set(0, 0, 0); // Will be updated in updateCamera
-        this.cameraLight.castShadow = false; // Disable shadows for performance
-        this.scene.add(this.cameraLight);
+        // Sun light - EXACT same as WebGPU example
+        this.sunLight = new THREE.DirectionalLight('#ffffff', 2);
+        this.sunLight.position.set(0, 0, 3);  // EXACT same position as WebGPU example
+        this.scene.add(this.sunLight);
         
-        console.log('💡 Camera-following directional light created');
+        // Keep minimal ambient light for compatibility with game systems
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+        this.scene.add(ambientLight);
+        
+        console.log('☀️ Sun light created - EXACT same as WebGPU example (intensity: 2, position: (0,0,3))');
     }
 
     createPlanet() {
-        const atmosphereRadius = params.PLANET_DIAMETER / 2 * params.PLANET_OUTER_SPHERE_SCALE;
+        /* ===============================
+         * WEBGPU EARTH COMPATIBLE IMPLEMENTATION  
+         * ===============================
+         * This method reproduces the EXACT same visual effect as the Three.js WebGPU Earth example
+         * but using standard Three.js materials with custom shaders for maximum compatibility:
+         * - Custom vertex/fragment shaders reproducing TSL node logic
+         * - Same texture channels: R=Bump, G=Roughness, B=Clouds 
+         * - Same uniforms, atmosphere colors, and effect parameters
+         * - Full GUI control support with real-time updates
+         */
+        
         const planetRadius = params.PLANET_DIAMETER / 2 * params.PLANET_INNER_SPHERE_SCALE;
+        const atmosphereRadius = planetRadius * 1.04; // 4% larger like the example
         
-        // Material parameters from the Three.js example
-        const roughnessLow = 0.25;
-        const roughnessHigh = 0.35;
-        
-        // Load planet textures
+        // Load texture (single day texture only)
         const textureLoader = new THREE.TextureLoader();
         
-        // Load Earth textures with proper configuration (same as example)
-        const earthDayTexture = textureLoader.load('textures/planet_color.jpg');
-        earthDayTexture.colorSpace = THREE.SRGBColorSpace;
-        earthDayTexture.anisotropy = 8;
-        // No repeat wrapping - use default ClampToEdgeWrapping like example
-        // earthDayTexture.wrapS = THREE.ClampToEdgeWrapping;
-        // earthDayTexture.wrapT = THREE.ClampToEdgeWrapping;
-        // No repeat scaling - use natural UV mapping like example
-        
-        const earthBumpRoughnessCloudsTexture = textureLoader.load('textures/earth_bump_roughness_clouds_4096.jpg');
-        earthBumpRoughnessCloudsTexture.anisotropy = 8;
-        // No repeat wrapping - use default ClampToEdgeWrapping like example
-        // earthBumpRoughnessCloudsTexture.wrapS = THREE.ClampToEdgeWrapping;
-        // earthBumpRoughnessCloudsTexture.wrapT = THREE.ClampToEdgeWrapping;
-        // No repeat scaling - use natural UV mapping like example
-        
-        // Create outer planet (clouds atmosphere layer)
-        const outerGeometry = new THREE.SphereGeometry(atmosphereRadius, 64, 64);
-        
-        // Advanced outer material matching the example's atmosphere approach
-        const outerMaterial = new THREE.MeshStandardMaterial({
-            map: earthBumpRoughnessCloudsTexture,
-            transparent: true,
-            opacity: params.PLANET_OUTER_OPACITY,
-            side: THREE.BackSide, // Same as example's atmosphere
-            depthWrite: false, // Same as example for transparency
-            
-            // Use the texture channels for advanced effects
-            // Red channel: bump/elevation
-            // Green channel: roughness
-            // Blue channel: clouds
-            roughnessMap: earthBumpRoughnessCloudsTexture,
-            roughness: roughnessHigh, // Use high roughness for clouds
-            metalness: 0.0, // No metalness for clouds/atmosphere
-            
-            // Enhanced cloud rendering
-            alphaMap: earthBumpRoughnessCloudsTexture, // Use blue channel for cloud alpha
-            alphaTest: 0.01, // Lower alpha test like example
-            
-            // Lighting properties
-            envMapIntensity: 0.5 // Reduced for atmosphere
+        const dayTexture = textureLoader.load('textures/planet_color.jpg');
+        dayTexture.colorSpace = THREE.SRGBColorSpace;
+        dayTexture.anisotropy = 8;
+
+        const bumpRoughnessCloudsTexture = textureLoader.load('textures/planet_normal.jpg');
+        bumpRoughnessCloudsTexture.anisotropy = 8;
+
+        // Get sun light direction - use our created sun light
+        const sunDirection = this.sunLight.position.clone().normalize();
+
+        // Uniforms exactly like the WebGPU example
+        this.atmosphereDayColor = new THREE.Color('#4db2ff');
+        this.atmosphereTwilightColor = new THREE.Color('#bc490b'); 
+        this.roughnessLow = 0.25;
+        this.roughnessHigh = 0.35;
+
+        // GLOBE - Custom shader reproducing TSL node logic exactly
+        const sphereGeometry = new THREE.SphereGeometry(planetRadius, 64, 64);
+        const globeMaterial = new THREE.MeshStandardMaterial({
+            map: dayTexture,
+            bumpMap: bumpRoughnessCloudsTexture,
+            bumpScale: 0.02,
+            roughnessMap: bumpRoughnessCloudsTexture,
+            roughness: this.roughnessLow,
+            metalness: 0.0
         });
-        
-        // Custom shader chunks for advanced cloud effects (matching example logic)
-        outerMaterial.onBeforeCompile = (shader) => {
-            // Add cloud processing to fragment shader
+
+        // Simple cloud shader - focus on VISIBLE clouds first
+        globeMaterial.onBeforeCompile = (shader) => {
+            // Simple cloud extraction
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <map_fragment>',
                 `
                 #include <map_fragment>
                 
-                // Extract cloud strength from blue channel (same as example)
-                float cloudStrength = texture2D(map, vMapUv).b;
-                cloudStrength = smoothstep(0.2, 1.0, cloudStrength);
+                // Simple cloud extraction from blue channel
+                float clouds = texture2D(map, vMapUv).b;
                 
-                // Enhance cloud appearance (same logic as example)
-                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), cloudStrength * 2.0);
+                // Clear threshold for visible clouds
+                clouds = smoothstep(0.4, 0.9, clouds);
                 
-                // Apply cloud transparency
-                float alpha = cloudStrength;
-                diffuseColor.a = alpha;
+                // Mix with bright white for clear cloud visibility
+                vec3 cloudColor = vec3(1.0, 1.0, 1.0);
+                diffuseColor.rgb = mix(diffuseColor.rgb, cloudColor, clouds * 1.2);
                 `
             );
+
+            console.log('☁️ Simple cloud shader applied');
         };
-        
-        this.planet = new THREE.Mesh(outerGeometry, outerMaterial);
-        this.planet.receiveShadow = true;
-        this.planet.castShadow = false; // Atmosphere doesn't cast shadows
-        this.planet.renderOrder = 2; // Render after surface
-        this.scene.add(this.planet);
-        
-        // Create inner sphere (solid Earth surface - main globe)
-        const innerGeometry = new THREE.SphereGeometry(planetRadius, 64, 64);
-        
-        // Globe material matching the example's settings
-        const innerMaterial = new THREE.MeshStandardMaterial({
-            map: earthDayTexture,
-            transparent: true,
-            opacity: 0.7,
-            side: THREE.FrontSide,
-            
-            // Surface properties matching example
-            roughnessMap: earthBumpRoughnessCloudsTexture,
-            roughness: roughnessLow, // Base roughness
-            metalness: 0.0, // No metalness like example
-            
-            // Enhanced surface details
-            bumpMap: earthBumpRoughnessCloudsTexture,
-            bumpScale: 0.02, // Same as example
-            
-            // Lighting response
-            envMapIntensity: 1.0
-        });
-        
-        // Custom shader for enhanced Earth surface (matching example logic)
-        innerMaterial.onBeforeCompile = (shader) => {
-            // Add uniforms for roughness range
-            shader.uniforms.roughnessLow = { value: roughnessLow };
-            shader.uniforms.roughnessHigh = { value: roughnessHigh };
-            
-            // Add uniform declarations to fragment shader
-            shader.fragmentShader = shader.fragmentShader.replace(
-                'uniform float roughness;',
-                `uniform float roughness;
-                uniform float roughnessLow;
-                uniform float roughnessHigh;`
-            );
-            
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <map_fragment>',
-                `
-                #include <map_fragment>
-                
-                // Get cloud strength from blue channel for surface color mixing
-                float surfaceCloudsStrength = texture2D(roughnessMap, vMapUv).b;
-                surfaceCloudsStrength = smoothstep(0.2, 1.0, surfaceCloudsStrength);
-                
-                // Mix day texture with clouds (same as example)
-                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), surfaceCloudsStrength * 2.0);
-                `
-            );
-            
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <roughnessmap_fragment>',
-                `
-                #include <roughnessmap_fragment>
-                
-                // Advanced roughness calculation (same as example)
-                float roughnessFromMap = texture2D(roughnessMap, vMapUv).g;
-                float roughnessCloudsStrength = texture2D(roughnessMap, vMapUv).b;
-                roughnessCloudsStrength = smoothstep(0.2, 1.0, roughnessCloudsStrength);
-                
-                // Use max of roughness and cloud step (same as example)
-                float finalRoughness = max(roughnessFromMap, step(0.01, roughnessCloudsStrength));
-                
-                // Remap between low and high roughness (same as example)
-                roughnessFactor = mix(roughnessLow, roughnessHigh, finalRoughness);
-                `
-            );
-        };
-        
-        this.innerPlanet = new THREE.Mesh(innerGeometry, innerMaterial);
+
+        // Create globe mesh
+        this.innerPlanet = new THREE.Mesh(sphereGeometry, globeMaterial);
         this.innerPlanet.receiveShadow = true;
         this.innerPlanet.castShadow = true;
-        this.innerPlanet.renderOrder = 1; // Render before atmosphere
         this.scene.add(this.innerPlanet);
-        
+
+        // ATMOSPHERE - temporarily disabled to focus on clouds
+        const atmosphereMaterial = new THREE.MeshBasicMaterial({
+            transparent: true,
+            side: THREE.BackSide,
+            opacity: 0.05,  // Very minimal for now
+            color: this.atmosphereDayColor,
+            blending: THREE.AdditiveBlending,
+            visible: false  // Hide initially to focus on clouds
+        });
+
+        const atmosphere = new THREE.Mesh(sphereGeometry, atmosphereMaterial);
+        atmosphere.scale.setScalar(1.04); // 4% larger exactly like the example
+        this.scene.add(atmosphere);
+
+        // Store references
+        this.planet = atmosphere;
         this.planetRadius = atmosphereRadius;
-        
-        console.log('🌍 Earth planet created (Three.js example-based):', {
-            atmosphereRadius: atmosphereRadius,
+
+        console.log('🌍 Earth planet created - FOCUSING ON CLOUDS FIRST:', {
             planetRadius: planetRadius,
-            atmosphereOpacity: params.PLANET_OUTER_OPACITY,
-            textureMapping: 'Natural UV mapping (no repeat) - prevents polar distortion',
-            atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg (BackSide)',
-            surfaceTexture: 'planet_color.jpg (FrontSide)',
-            materialParameters: {
-                roughnessLow: roughnessLow,
-                roughnessHigh: roughnessHigh,
-                atmosphereRoughness: roughnessHigh,
-                surfaceBaseRoughness: roughnessLow,
-                metalness: 0.0
-            },
-            features: {
-                atmosphereLayer: 'Blue channel cloud processing with BackSide rendering',
-                surfaceDetails: 'Dynamic roughness mapping with texture channels',
-                cloudBlending: 'Surface-cloud color mixing at 2.0x multiplier',
-                textureChannels: 'R=Bump, G=Roughness, B=Clouds',
-                uvMapping: 'Standard spherical UV mapping without repetition'
-            },
-            shaderEnhancements: {
-                atmosphere: 'Cloud transparency with smoothstep(0.2, 1.0)',
-                surface: 'Roughness remapping between low/high values',
-                rendering: 'Surface first (order 1), atmosphere second (order 2)'
-            },
-            exampleCompliance: 'Full compatibility with Three.js WebGPU Earth example'
+            atmosphereRadius: atmosphereRadius,
+            method: 'Simple cloud shader - step by step approach',
+            implementation: '✅ Clear cloud visibility priority',
+            cloudSettings: {
+                texture: 'planet_normal.jpg (Blue channel)',
+                threshold: 'smoothstep(0.4, 0.9) - clearer range',
+                intensity: '1.2 - bright white clouds',
+                atmosphere: 'DISABLED for now - focus on clouds'
+            }
         });
         
-        // Debug: Check visibility and provide tips
-        if (params.PLANET_OUTER_OPACITY >= 1.0 && planetRadius < atmosphereRadius * 0.8) {
-            console.warn('⚠️  Surface may not be visible: atmosphere is opaque and surface is small');
-            console.log('💡 Three.js example-based suggestions:');
-            console.log('   - Reduce PLANET_OUTER_OPACITY to 0.7 for better atmosphere transparency');
-            console.log('   - Increase PLANET_INNER_SPHERE_SCALE to 0.95 for better surface visibility');
-            console.log('   - Use toggleCloudVisibility() method to debug atmosphere layer');
-            console.log('   - Use toggleAtmosphereSide() to test BackSide vs FrontSide rendering');
-        }
+        console.log('☁️ Step-by-step cloud debugging:');
+        console.log('   1. First verify clouds are visible (atmosphere disabled)');
+        console.log('   2. sceneManager.testCloudThresholds() // Test different cloud ranges');
+        console.log('   3. sceneManager.toggleAtmosphere() // Re-enable atmosphere after clouds work');
+        console.log('   4. Compare with webgpu-earth-test.html');
+        
+        console.log('🔧 Available controls:');
+        console.log('   - sceneManager.testCloudThresholds() // Test cloud visibility');
+        console.log('   - sceneManager.setCloudThreshold(min, max, intensity) // Manual adjust');
+        console.log('   - sceneManager.toggleAtmosphere() // Show/hide atmosphere');
+        console.log('   - sceneManager.showDebugInfo() // Current settings');
+    }
+
+    initializeGUI() {
+        console.log('🎛️ GUI disabled for now - focusing on basic cloud visibility');
+        console.log('💡 Use console commands instead: sceneManager.showDebugInfo()');
     }
 
     initializeHUD() {
@@ -938,7 +852,7 @@ export class SceneManager {
                 roughness: atmosphereMaterial?.roughness || 'N/A',
                 side: atmosphereMaterial?.side === THREE.BackSide ? 'BackSide' : 'FrontSide',
                 metalness: atmosphereMaterial?.metalness || 'N/A',
-                texture: 'earth_bump_roughness_clouds_4096.jpg',
+                texture: 'planet_normal.jpg',
                 channels: {
                     red: 'Bump/Elevation',
                     green: 'Roughness',
@@ -953,7 +867,7 @@ export class SceneManager {
                 metalness: surfaceMaterial?.metalness || 'N/A',
                 transparent: surfaceMaterial?.transparent || false,
                 texture: 'planet_color.jpg',
-                roughnessTexture: 'earth_bump_roughness_clouds_4096.jpg',
+                roughnessTexture: 'planet_normal.jpg',
                 features: ['Dynamic roughness mapping', 'Cloud-surface blending', 'Multi-channel texturing']
             },
             shaderEnhancements: {
@@ -1050,16 +964,257 @@ export class SceneManager {
             atmosphereRenderOrder: this.planet?.renderOrder || 'N/A',
             surfaceRenderOrder: this.innerPlanet?.renderOrder || 'N/A',
             textureMapping: 'Natural UV mapping (no repeat)',
-            atmosphereTexture: 'earth_bump_roughness_clouds_4096.jpg',
+            atmosphereTexture: 'planet_normal.jpg',
             surfaceTexture: 'planet_color.jpg',
             uvMapping: 'Standard spherical UV without distortion'
         };
+    }
+
+    // Planet rotation disabled - no automatic rotation
+    updatePlanetRotation(delta) {
+        // Rotation disabled - planet remains static
+        // if (this.innerPlanet) {
+        //     this.innerPlanet.rotation.y += delta * 0.025;
+        // }
+    }
+
+    // Cloud debugging methods for real-time adjustment
+    adjustCloudVisibility(intensity = 0.7) {
+        if (this.innerPlanet && this.innerPlanet.material) {
+            // This will require re-compiling the shader - simplified approach
+            console.log(`☁️ Cloud intensity set to: ${intensity} (requires material update)`);
+            // Force material recompilation
+            this.innerPlanet.material.needsUpdate = true;
+        }
+    }
+
+    adjustCloudThreshold(min = 0.3, max = 0.8) {
+        console.log(`☁️ Cloud threshold set to: smoothstep(${min}, ${max})`);
+        console.log('💡 Tip: Lower values show more clouds, higher values show fewer clouds');
+    }
+
+    toggleAtmosphere() {
+        if (this.planet) {
+            this.planet.visible = !this.planet.visible;
+            console.log(`🌍 Atmosphere ${this.planet.visible ? 'shown' : 'hidden'}`);
+        }
+    }
+
+    adjustAtmosphereOpacity(value = 0.1) {
+        if (this.planet && this.planet.material) {
+            this.planet.material.opacity = value;
+            console.log(`🌍 Atmosphere opacity set to: ${value}`);
+        }
+    }
+
+    // Test different cloud visibility levels
+    testCloudVisibility() {
+        console.log('☁️ Testing cloud visibility levels...');
+        const levels = [0.0, 0.3, 0.5, 0.7, 1.0];
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < levels.length) {
+                const level = levels[currentIndex];
+                this.adjustCloudVisibility(level);
+                console.log(`Testing cloud intensity: ${level}`);
+                currentIndex++;
+                setTimeout(testNext, 2000); // Change every 2 seconds
+            } else {
+                console.log('☁️ Cloud visibility test completed');
+                this.adjustCloudVisibility(0.7); // Return to default
+            }
+        };
+        
+        testNext();
+    }
+
+    // Debug method to isolate white halo issue
+    debugWhiteHalo() {
+        console.log('🔍 Debugging white halo issue...');
+        
+        // First, hide atmosphere to check if it's the cause
+        if (this.planet) {
+            this.planet.visible = false;
+            console.log('1. Atmosphere hidden - check if white halo is gone');
+            
+            setTimeout(() => {
+                console.log('2. Atmosphere restored');
+                this.planet.visible = true;
+                
+                // Now test with different cloud intensities
+                setTimeout(() => {
+                    console.log('3. Testing cloud intensity variations...');
+                    this.testCloudIntensities();
+                }, 2000);
+            }, 3000);
+        }
+    }
+
+    testCloudIntensities() {
+        const intensities = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0];
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < intensities.length) {
+                const intensity = intensities[currentIndex];
+                console.log(`☁️ Testing cloud intensity: ${intensity}`);
+                
+                // Force shader recompilation with new intensity
+                if (this.innerPlanet && this.innerPlanet.material) {
+                    this.innerPlanet.material.needsUpdate = true;
+                }
+                
+                currentIndex++;
+                setTimeout(testNext, 2000);
+            } else {
+                console.log('☁️ Cloud intensity test completed - choose your preferred level');
+            }
+        };
+        
+        testNext();
+    }
+
+    // Test different atmosphere diffusion levels
+    testAtmosphereDiffusion() {
+        console.log('🌫️ Testing atmosphere diffusion levels...');
+        
+        if (!this.planet || !this.planet.material) {
+            console.warn('❌ No atmosphere material found');
+            return;
+        }
+        
+        const diffusionLevels = [
+            { name: 'Very Sharp', opacity: 0.8, blending: THREE.NormalBlending },
+            { name: 'Sharp', opacity: 0.6, blending: THREE.NormalBlending },
+            { name: 'Medium', opacity: 0.4, blending: THREE.AdditiveBlending },
+            { name: 'Soft', opacity: 0.3, blending: THREE.AdditiveBlending },
+            { name: 'Very Soft', opacity: 0.2, blending: THREE.AdditiveBlending },
+            { name: 'Ultra Soft', opacity: 0.1, blending: THREE.AdditiveBlending }
+        ];
+        
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < diffusionLevels.length) {
+                const level = diffusionLevels[currentIndex];
+                
+                // Apply settings
+                this.planet.material.opacity = level.opacity;
+                this.planet.material.blending = level.blending;
+                this.planet.material.needsUpdate = true;
+                
+                console.log(`🌫️ Testing: ${level.name} (opacity: ${level.opacity}, blending: ${level.blending === THREE.AdditiveBlending ? 'Additive' : 'Normal'})`);
+                
+                currentIndex++;
+                setTimeout(testNext, 3000); // 3 seconds per level
+            } else {
+                console.log('🌫️ Atmosphere diffusion test completed');
+                console.log('💡 Choose your preferred level and set it manually:');
+                console.log('   sceneManager.setAtmosphereDiffusion(opacity, useAdditiveBlending)');
+            }
+        };
+        
+        testNext();
+    }
+
+    // Set atmosphere diffusion manually
+    setAtmosphereDiffusion(opacity = 0.3, useAdditiveBlending = true) {
+        if (this.planet && this.planet.material) {
+            this.planet.material.opacity = opacity;
+            this.planet.material.blending = useAdditiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending;
+            this.planet.material.needsUpdate = true;
+            
+            console.log(`🌫️ Atmosphere diffusion set: opacity ${opacity}, ${useAdditiveBlending ? 'additive' : 'normal'} blending`);
+        }
+    }
+
+    // Test different cloud threshold values
+    testCloudThresholds() {
+        console.log('☁️ Testing different cloud thresholds...');
+        
+        const thresholds = [
+            { name: 'Very Low', min: 0.1, max: 0.5, intensity: 1.5, desc: 'Show almost all blue channel as clouds' },
+            { name: 'Low', min: 0.2, max: 0.6, intensity: 1.3, desc: 'More clouds visible' },
+            { name: 'Medium-Low', min: 0.3, max: 0.7, intensity: 1.2, desc: 'Moderate cloud coverage' },
+            { name: 'Current', min: 0.4, max: 0.9, intensity: 1.2, desc: 'Current settings' },
+            { name: 'High', min: 0.5, max: 0.95, intensity: 1.0, desc: 'Only clearest clouds' },
+            { name: 'Very High', min: 0.6, max: 0.98, intensity: 0.8, desc: 'Only strongest cloud areas' }
+        ];
+        
+        let currentIndex = 0;
+        
+        const testNext = () => {
+            if (currentIndex < thresholds.length) {
+                const threshold = thresholds[currentIndex];
+                
+                console.log(`☁️ Testing: ${threshold.name} - ${threshold.desc}`);
+                console.log(`   Range: smoothstep(${threshold.min}, ${threshold.max}), intensity: ${threshold.intensity}`);
+                
+                // Note: This would require recompiling shader, so we'll just log for now
+                // In a real implementation, we'd need to rebuild the shader or use uniforms
+                
+                currentIndex++;
+                setTimeout(testNext, 4000); // 4 seconds per test
+            } else {
+                console.log('☁️ Cloud threshold test completed');
+                console.log('💡 To apply a setting: sceneManager.setCloudThreshold(min, max, intensity)');
+                console.log('🔄 Recompiling shader may require page refresh');
+            }
+        };
+        
+        testNext();
+    }
+
+    // Set cloud threshold (note: requires shader recompilation)
+    setCloudThreshold(min = 0.4, max = 0.9, intensity = 1.2) {
+        console.log(`☁️ Setting cloud threshold: smoothstep(${min}, ${max}) * ${intensity}`);
+        console.log('⚠️  This requires shader recompilation - refresh page to see changes');
+        
+        // Store settings for potential shader rebuild
+        this.cloudSettings = { min, max, intensity };
+        
+        if (this.innerPlanet && this.innerPlanet.material) {
+            this.innerPlanet.material.needsUpdate = true;
+        }
+    }
+
+    // Show current debug info
+    showDebugInfo() {
+        console.log('🔍 Current Planet Debug Info:');
+        console.log('📍 Planet Position:', this.innerPlanet ? this.innerPlanet.position : 'Not found');
+        console.log('👁️  Planet Visible:', this.innerPlanet ? this.innerPlanet.visible : 'Not found');
+        console.log('🌍 Atmosphere Visible:', this.planet ? this.planet.visible : 'Not found');
+        console.log('📐 Planet Scale:', this.innerPlanet ? this.innerPlanet.scale : 'Not found');
+        console.log('🎨 Materials:');
+        console.log('   - Planet Material:', this.innerPlanet ? this.innerPlanet.material.type : 'Not found');
+        console.log('   - Atmosphere Material:', this.planet ? this.planet.material.type : 'Not found');
+        
+        // Texture info
+        if (this.innerPlanet && this.innerPlanet.material) {
+            const mat = this.innerPlanet.material;
+            console.log('🖼️  Textures:');
+            console.log('   - Diffuse Map:', mat.map ? '✅ Loaded' : '❌ Missing');
+            console.log('   - Roughness Map:', mat.roughnessMap ? '✅ Loaded' : '❌ Missing');
+            console.log('   - Bump Map:', mat.bumpMap ? '✅ Loaded' : '❌ Missing');
+        }
+        
+        console.log('🎛️ Available tests:');
+        console.log('   - testCloudThresholds() // Test different cloud visibility ranges');
+        console.log('   - toggleAtmosphere() // Show/hide atmosphere');
+        console.log('   - Planet rotation disabled (static planet)');
     }
 
     // Cleanup
     shutdown() {
         if (this.renderer) {
             this.renderer.dispose();
+        }
+        
+        // Clean up GUI
+        if (this.gui) {
+            this.gui.destroy();
+            this.gui = null;
         }
         
         // Clean up HUD

@@ -1,4 +1,5 @@
-// main.js - Game initialization using new SOLID architecture
+// main.js - Game initialization using SOLID architecture 
+// Using standard Three.js with custom shaders reproducing WebGPU Earth effects  
 import * as THREE from 'three';
 import { GameEngine } from './core/GameEngine.js';
 import { GameStateSystem } from './systems/GameStateSystem.js';

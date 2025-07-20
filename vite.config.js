@@ -19,13 +19,13 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'three': ['three']
+          'three': ['three', 'three/webgpu', 'three/tsl']
         }
       }
     }
   },
   
-  // Optimisation des dépendances
+  // Optimisation des dépendances - simplifiée
   optimizeDeps: {
     include: ['three']
   },
