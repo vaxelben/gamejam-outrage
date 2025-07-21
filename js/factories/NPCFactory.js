@@ -68,12 +68,12 @@ function createBasicNPC(config) {
             .add(up.multiplyScalar(offsetZ));
             
         // Ensure position is on planet surface
-        position.normalize().multiplyScalar(planetRadius + (params.NPC_SIZE || 0.5) / 2);
+        position.normalize().multiplyScalar(planetRadius + params.PLANET_SURFACE_OFFSET);
     } else {
         // Fallback to random position on planet surface
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const radius = planetRadius + (params.NPC_SIZE || 0.5) / 2;
+        const radius = planetRadius + params.PLANET_SURFACE_OFFSET;
         
         position = new THREE.Vector3(
             radius * Math.sin(phi) * Math.cos(theta),

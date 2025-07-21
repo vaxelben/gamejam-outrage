@@ -20,7 +20,7 @@ export class PoliceSystem extends IGameSystem {
         // Use parameter instead of hardcoded value
         this.activationOutrage = params.OUTRAGE_POLICE_THRESHOLD;
         this.maxPolice = 2; // Fewer police NPCs than drones
-        this.spawnRadius = this.planetRadius + params.NPC_SIZE / 2;
+        this.spawnRadius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         this.detectionRadius = params.POLICE_CATCH_DISTANCE || 2;
         this.speed = params.POLICE_SPEED_MULTIPLIER || 1.3;
         
@@ -39,7 +39,7 @@ export class PoliceSystem extends IGameSystem {
         this.planetRadius = sceneManager.getPlanetRadius();
         
         // Update spawn radius now that we have planetRadius
-        this.spawnRadius = this.planetRadius + params.NPC_SIZE / 2;
+        this.spawnRadius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         console.log('🚔 Police System initialized');
         console.log(`🚔 Police speed multiplier: ${params.POLICE_SPEED_MULTIPLIER || 1.3}`);
@@ -147,7 +147,7 @@ export class PoliceSystem extends IGameSystem {
         // Generate random position on planet surface
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const radius = this.planetRadius + params.NPC_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         const position = new THREE.Vector3(
             radius * Math.sin(phi) * Math.cos(theta),
@@ -238,7 +238,7 @@ export class PoliceSystem extends IGameSystem {
     movePoliceTowardsPlayer(policeNPC, playerPosition, deltaTime) {
         // Use the same quaternion-based movement system as the player
         const speed = params.PLAYER_SPEED * policeNPC.speedMultiplier * deltaTime;
-        const radius = this.planetRadius + params.NPC_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         const currentPos = policeNPC.transform.position.clone();
         
@@ -318,7 +318,7 @@ export class PoliceSystem extends IGameSystem {
     constrainToSurface(policeNPC) {
         // Keep NPC on planet surface
         const currentDistance = policeNPC.transform.position.length();
-        const targetDistance = this.planetRadius + params.NPC_SIZE / 2;
+        const targetDistance = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         if (Math.abs(currentDistance - targetDistance) > 0.1) {
             policeNPC.transform.position.normalize().multiplyScalar(targetDistance);

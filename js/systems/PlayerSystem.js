@@ -40,7 +40,7 @@ export class PlayerSystem extends IGameSystem {
         this.planetRadius = sceneManager.getPlanetRadius();
         
         // Setup player position
-        const playerHeight = this.planetRadius + params.PLAYER_SIZE / 2;
+        const playerHeight = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         this.transform.setPosition(0, playerHeight, 0);
         
         // Create player renderer
@@ -422,7 +422,7 @@ export class PlayerSystem extends IGameSystem {
     
     handleQuaternionMovement(input, deltaTime) {
         const speed = params.PLAYER_SPEED * deltaTime;
-        const radius = this.planetRadius + params.PLAYER_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
 
         // Get camera and current position
         const camera = serviceContainer.resolve('camera');
@@ -482,7 +482,7 @@ export class PlayerSystem extends IGameSystem {
     handleLinearMovement(input, deltaTime) {
         // Calculate movement speed
         const speed = params.PLAYER_SPEED * deltaTime;
-        const radius = this.planetRadius + params.PLAYER_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         // Get current position and normalize to correct radius
         const currentPos = this.transform.position.clone();

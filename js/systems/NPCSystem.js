@@ -192,7 +192,7 @@ export class NPCSystem extends IGameSystem {
                 
                 // Project NPC to planet surface
                 const surfaceNormal = newNPCPosition.clone().normalize();
-                const targetDistance = this.planetRadius + params.NPC_SIZE / 2;
+                const targetDistance = this.planetRadius + params.PLANET_SURFACE_OFFSET;
                 newNPCPosition.copy(surfaceNormal.multiplyScalar(targetDistance));
                 
                 // Update NPC position
@@ -570,7 +570,7 @@ export class NPCSystem extends IGameSystem {
         // Project to planet surface
         const planetDistance = targetPos.length();
         if (planetDistance > 0) {
-            const surfaceDistance = this.planetRadius + params.NPC_SIZE / 2;
+            const surfaceDistance = this.planetRadius + params.PLANET_SURFACE_OFFSET;
             targetPos.normalize().multiplyScalar(surfaceDistance);
         }
         
@@ -608,7 +608,7 @@ export class NPCSystem extends IGameSystem {
         const distance = position.length();
         
         if (distance > 0) {
-            const targetDistance = this.planetRadius + params.NPC_SIZE / 2;
+            const targetDistance = this.planetRadius + params.PLANET_SURFACE_OFFSET;
             const normalizedPos = position.clone().normalize().multiplyScalar(targetDistance);
             npc.transform.setPosition(normalizedPos.x, normalizedPos.y, normalizedPos.z);
         }
@@ -617,7 +617,7 @@ export class NPCSystem extends IGameSystem {
     generateRandomPosition() {
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const radius = this.planetRadius + params.NPC_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         return new THREE.Vector3(
             radius * Math.sin(phi) * Math.cos(theta),
@@ -651,7 +651,7 @@ export class NPCSystem extends IGameSystem {
         
         const theta = basePosition.theta + thetaVariation;
         const phi = Math.max(0.1, Math.min(Math.PI - 0.1, basePosition.phi + phiVariation));
-        const radius = this.planetRadius + params.NPC_SIZE / 2;
+        const radius = this.planetRadius + params.PLANET_SURFACE_OFFSET;
         
         return new THREE.Vector3(
             radius * Math.sin(phi) * Math.cos(theta),
@@ -704,7 +704,7 @@ export class NPCSystem extends IGameSystem {
                 // Apply force and re-project to sphere surface
                 if (force.length() > 0) {
                     positions[i].add(force.multiplyScalar(0.1));
-                    positions[i].normalize().multiplyScalar(this.planetRadius + params.NPC_SIZE / 2);
+                    positions[i].normalize().multiplyScalar(this.planetRadius + params.PLANET_SURFACE_OFFSET);
                     totalForce += force.length();
                 }
             }

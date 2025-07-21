@@ -585,14 +585,19 @@ export class SceneManager {
         return this.innerPlanet;
     }
 
-    // Get planet radius
+    // Get planet radius (returns the inner planet surface radius for character positioning)
     getPlanetRadius() {
-        return this.planetRadius;
+        return params.PLANET_DIAMETER / 2 * params.PLANET_INNER_SPHERE_SCALE;
     }
 
-    // Get inner planet radius
+    // Get atmosphere radius (the larger sphere with atmosphere effects)
     getAtmosphereRadius() {
-        return this.planetRadius * params.PLANET_OUTER_SPHERE_SCALE;
+        return this.planetRadius; // This is the stored atmosphere radius
+    }
+
+    // Get inner planet radius (the visible surface)
+    getInnerPlanetRadius() {
+        return params.PLANET_DIAMETER / 2 * params.PLANET_INNER_SPHERE_SCALE;
     }
 
     // Set background color

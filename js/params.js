@@ -2,7 +2,7 @@
 export const params = {
     // Planet settings
     PLANET_DIAMETER: 60,
-    PLANET_SURFACE_OFFSET: 3, // Distance above surface
+    PLANET_SURFACE_OFFSET: 0.2, // Distance above surface for characters (reduced from 3)
     PLANET_INNER_SPHERE_SCALE: 1.0, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
     PLANET_OUTER_SPHERE_SCALE: 1.02, // Scale factor for inner sphere (0.92 = 92% of outer sphere, more space for visibility)
     PLANET_OUTER_OPACITY: 0.5, // Outer sphere opacity (more transparent to see inner sphere)
