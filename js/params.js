@@ -13,7 +13,7 @@ export const params = {
     PLAYER_SIZE: 0.9,
     
     // Camera settings
-    CAMERA_DISTANCE: 14,
+    CAMERA_DISTANCE: 10,
     CAMERA_HEIGHT_OFFSET: 20,
     
     // Scene appearance

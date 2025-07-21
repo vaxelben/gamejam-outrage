@@ -131,7 +131,9 @@ export class SceneManager {
             bumpScale: 0.02,
             roughnessMap: bumpRoughnessCloudsTexture,
             roughness: this.roughnessLow,
-            metalness: 0.0
+            metalness: 0.0,
+            transparent: true,
+            opacity: 0.85
         });
 
         // Simple cloud shader - focus on VISIBLE clouds first
